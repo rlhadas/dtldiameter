@@ -1,5 +1,6 @@
 import DP
 
+
 def FindValidPaths(Key, PreviousValues, Tree):
     """A recursive algorithm to find all of the valid paths through a binary tree, as well as a dict containing the
     nodes in each path."""
@@ -35,7 +36,7 @@ def ComputePathSymmetricSetDifferenceTable(sTree):
 
     PathList, PathNodes = FindValidPaths('hTop', [], sTree) # The handle of sTree is 'hTop', as given by newickFormatReader.py
 
-    # Note: If you wish to modify the code to assign different costs for each gene node, modifying this function
+    # Note: If you wish to modify the code to assign different scores for each gene node, modifying this function
     # to provide the actual lists of nodes in the SSD might be a good place to start
 
     SSD = {} #This is the Symmetric Set Difference table we will be returning
@@ -57,28 +58,55 @@ def ComputePathSymmetricSetDifferenceTable(sTree):
     return SSD, PathList, NonTrivialPathList
 
 
+def BuildExitEventList(Graph):
+    """Builds a dict containing lists of event nodes, each list keyed by the gene node."""
+    # The graph returned by DP is keyed by mapping nodes, so to get the gene node we take the first element of the key.
+    EventList = {}
+    for key in Graph:
+        if Graph[key][0] != 'L': # Ignore Loss Events
+            if key[0] not in EventList:
+                EventList[key[0]] = []
+            EventList[key[0]] += Graph[key]
+    return EventList
+
+
+
 def ComputeTrivialExitEventTable(u, ExitEvent):
-    """This function computes and stores the cost of the exit event on a leaf node 'u' of the gene tree.
+    """This function computes and stores the score of the exit event on a leaf node 'u' of the gene tree.
     As this event will always be a C event that is shared by all nodes, this value will always be 0."""
 
-    #TODO: Add function body
+    ExitEvent[(u, ['C', (None, None), (None, None)], ['C', (None, None), (None, None)])] = 0
+
+
+def ComputeExitEventTable(u, ExitEvent, EnterMapping, ExitEventList):
+    """This function computes and stores the score of the exit event on a non-leaf node 'u' of the gene tree."""
+
+    for E1 in ExitEventList[u]:
+        Child1 = E1[1][0]
+        Child2 = E1[2][1]
+        uB = E1[1]
+        uC = E1[2]
+        for E2 in ExitEventList[u]:
+            #We need to account for the case that the children of u are in opposite order between the two events
+            if Child1 == E2[1][0]:
+                uE = E2[1]
+                uF = E2[2]
+            else:
+                uE = E2[2]
+                uF = E2[1]
+            ExitEvent[(u, E1, E2)] = EnterMapping[(Child1, uB, uE)] \
+                                   + EnterMapping[(Child2, uC, uF)] \
+                                   + 1 if E1 != E2 else 0
 
 
 
-def ComputeExitEventTable(u):
-    """This function computes and stores the cost of the exit event on a non-leaf node 'u' of the gene tree."""
+def ComputeExitMappingTable(u, ExitEvent,):
+    """This function computes and stores the maximum possible score of the exit from gene node u"""
 
-    # TODO: Add function body
-
-
-def ComputeExitMappingTable(u):
-    """This function computes and stores the maximum possible cost of the exit from gene node u"""
-
-    # TODO: Add function body
 
 
 def ComputeEnterMappingTable(u):
-    """This function computes the maximum possible cost of each pair of mapping nodes for gene node u, and stores each
+    """This function computes the maximum possible score of each pair of mapping nodes for gene node u, and stores each
     one into the EnterMapping table for u."""
 
     # TODO: Add function body
@@ -101,7 +129,7 @@ def CalculateDiameter(filename, D, T, L):
 
     # TODO: Add a way to run the CalculateDiameter function on a previously-found reconciliation.
 
-    SpeciesTree, RecTree = DP.reconcile(filename, D, T, L)
+    SpeciesTree, Graph = DP.reconcile(filename, D, T, L)
     print "Reconciliation Complete"
     PathSymmetricSetDifference = {} # A dict containing the SSD count for each pair of species node paths.
 
@@ -121,6 +149,16 @@ def CalculateDiameter(filename, D, T, L):
     EnterMapping = {}   # A dict containing the largest number of event nodes that each pair of reconciliation subtrees
                         # rooted at uA and uB can have in common.
 
-    PathSymmetricSetDifference, PathList, NonTrivialPathList = ComputePathSymmetricSetDifferenceTable(SpeciesTree)
-    print PathList
+    ExitEventDict = {}  # This dict contains each exit (non-loss) event in the reconciliation graph, keyed by gene node.
 
+    MappingNodeList = Graph.keys() # This list contains each mapping node in the reconciliation graph
+
+    PathSymmetricSetDifference, PathList, NonTrivialPathList = ComputePathSymmetricSetDifferenceTable(SpeciesTree)
+    ExitEventDict = BuildExitEventList(Graph)
+
+
+
+    #PrintPathTableNicely(NonTrivialPathList,PathSymmetricSetDifference)
+
+def tst():
+    CalculateDiameter("example",0,0,0)
