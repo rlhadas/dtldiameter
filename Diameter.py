@@ -1,13 +1,34 @@
 import DP
 
+def FindValidPaths(Key,PreviousValues,Tree):
+    """A recursive algorithm to find all of the valid paths through a binary tree."""
 
-def ComputePathSymmetricSetDifferenceTable():
+    #The tree is represented as a dict, with values having the structure (previousNode,thisNode,childNode1,childNode2)
+    #With the child nodes values being the keys to those "nodeSet"s, as I've called them here
+
+    nodeSet = Tree[Key]
+    node = nodeSet[1]
+    paths = [(node, node)]
+    for val in PreviousValues:
+        paths += [(val,node)]
+    if not nodeSet[2] == None: #Then this node is not a leaf node, so we need to add this node's children
+        paths += FindValidPaths(nodeSet[2], PreviousValues + [node], Tree)
+        paths += FindValidPaths(nodeSet[3], PreviousValues + [node], Tree)
+    return paths
+
+
+
+def ComputePathSymmetricSetDifferenceTable(sTree):
     """Computes the table containing the number of nodes in the symmetric set difference between any two paths on the
      species tree."""
+
+    PathList = FindValidPaths('hTop',[],sTree)
+
+
     # TODO: everything
     # Note: If you wish to modify the code to assign different costs for each gene node, modifying this function
     # to provide the actual lists of nodes in the SSD might be a good place to start
-    return {}, []
+    return {}, PathList
 
 
 def ComputeTrivialExitEventTable(u, ExitEvent):
@@ -41,8 +62,9 @@ def CalculateDiameter(filename, D, T, L):
     """This function computes the diameter of space of MPRs in a DTL reconciliation problem,
     as measured by the symmetric set distance between the two."""
 
-    Tree = DP.reconcile(filename, D, T, L)
+    # TODO: Add a way to run the CalculateDiameter function on a previously-found reconciliation.
 
+    SpeciesTree, RecTree = DP.reconcile(filename, D, T, L)
     PathSymmetricSetDifference = {} # A dict containing the SSD for each non-trivial pair of species nodes.
 
     PathList = []   # A list of all of the valid paths between two species nodes
@@ -59,5 +81,6 @@ def CalculateDiameter(filename, D, T, L):
     EnterMapping = {}   # A dict containing the largest number of event nodes that each pair of reconciliation subtrees
                         # rooted at uA and uB can have in common.
 
-    PathSymmetricSetDifference, PathList = ComputePathSymmetricSetDifferenceTable()
+    PathSymmetricSetDifference, PathList = ComputePathSymmetricSetDifferenceTable(SpeciesTree)
+    print PathList
 

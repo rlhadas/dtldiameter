@@ -307,12 +307,15 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
 
     # Use findPath and findBestRoots to construct the DTL graph dictionary
     treeMin = findBestRoots(parasiteTree, Minimums)
-    DTL = findPath(treeMin, eventsDict, {}) 
-    for key in Score.keys():
-        if not key in DTL:
-            del Score[key]
-    DTL, numRecon = addScores(treeMin, DTL, Score)
-    return DTL, numRecon
+    DTL = findPath(treeMin, eventsDict, {})
+
+    # Scores are not needed for this application, so the relevant sections have bee commented out.
+
+    #for key in Score.keys():
+     #   if not key in DTL:
+     #       del Score[key]
+    #DTL, numRecon = addScores(treeMin, DTL, Score)
+    return DTL#, numRecon
 
 
 def preorderDTLsort(DTL, ParasiteRoot):
@@ -452,5 +455,6 @@ def reconcile(fileName, D, T, L):
     cost, and a loss cost. This uses newickFormatReader to extract the host 
     tree, parasite tree and tip mapping from the file and then calls DP to 
     return the DTL reconciliation graph of the provided newick file"""
+    #Note: I have made
     host, paras, phi = newickFormatReader.getInput(fileName)
-    return DP(host, paras, phi, D, T, L)
+    return host, DP(host, paras, phi, D, T, L)
