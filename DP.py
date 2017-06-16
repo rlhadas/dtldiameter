@@ -455,6 +455,6 @@ def reconcile(fileName, D, T, L):
     cost, and a loss cost. This uses newickFormatReader to extract the host 
     tree, parasite tree and tip mapping from the file and then calls DP to 
     return the DTL reconciliation graph of the provided newick file"""
-    #Note: I have made
+    #Note: I have made modificatons to the return statement to make Diameter.py possible without re-reconciling.
     host, paras, phi = newickFormatReader.getInput(fileName)
-    return host, DP(host, paras, phi, D, T, L)
+    return host, paras, DP(host, paras, phi, D, T, L)

@@ -1,5 +1,11 @@
 import DP
 
+# TODO: Find out what Jordan's original algorithm for finding the intersections between two paths was, and see if mine is better
+# TODO: Find out what Group(u) means computationally, and whether that is better than what I have done
+
+def ReformatTree(Tree,root):
+    """Takes a tree (species or gene) and changes the format from ('A','B'): ('A','B',C1,C2) to 'B':(C1,C2)"""
+    Tree[root]
 
 def FindValidPaths(Key, PreviousValues, Tree):
     """A recursive algorithm to find all of the valid paths through a binary tree, as well as a dict containing the
@@ -58,29 +64,34 @@ def ComputePathSymmetricSetDifferenceTable(sTree):
     return SSD, PathList, NonTrivialPathList
 
 
-def BuildExitEventList(Graph):
+def BuildExitDicts(Graph):
     """Builds a dict containing lists of event nodes, each list keyed by the gene node."""
     # The graph returned by DP is keyed by mapping nodes, so to get the gene node we take the first element of the key.
-    EventList = {}
+    EventDict = {}
+    MappingDict = {}
     for key in Graph:
-        if Graph[key][0] != 'L': # Ignore Loss Events
-            if key[0] not in EventList:
-                EventList[key[0]] = []
-            EventList[key[0]] += Graph[key]
-    return EventList
+        if Graph[key][0][0] != 'L': # Ignore Loss Events
+            GeneNode = key[0]
+            if GeneNode not in EventDict:
+                EventDict[GeneNode] = []
+                MappingDict[GeneNode] = []
+            if key not in MappingDict[GeneNode]:
+                MappingDict[GeneNode] += [key]
+            EventDict[GeneNode] += Graph[key]
 
+    return EventDict, MappingDict
 
 
 def ComputeTrivialExitEventTable(u, ExitEvent):
     """This function computes and stores the score of the exit event on a leaf node 'u' of the gene tree.
     As this event will always be a C event that is shared by all nodes, this value will always be 0."""
 
-    ExitEvent[(u, ['C', (None, None), (None, None)], ['C', (None, None), (None, None)])] = 0
+    ExitEvent[u][['C', (None, None), (None, None)]][['C', (None, None), (None, None)]] = 0
 
 
 def ComputeExitEventTable(u, ExitEvent, EnterMapping, ExitEventList):
     """This function computes and stores the score of the exit event on a non-leaf node 'u' of the gene tree."""
-
+    #TODO: Test this function
     for E1 in ExitEventList[u]:
         Child1 = E1[1][0]
         Child2 = E1[2][1]
@@ -94,25 +105,46 @@ def ComputeExitEventTable(u, ExitEvent, EnterMapping, ExitEventList):
             else:
                 uE = E2[2]
                 uF = E2[1]
-            ExitEvent[(u, E1, E2)] = EnterMapping[(Child1, uB, uE)] \
+            ExitEvent[u][E1][E2] = EnterMapping[(Child1, uB, uE)] \
                                    + EnterMapping[(Child2, uC, uF)] \
                                    + 1 if E1 != E2 else 0
 
 
 
-def ComputeExitMappingTable(u, ExitEvent,):
+def ComputeExitMappingTable(u, ExitMapping, ExitMappingNodeDict):
     """This function computes and stores the maximum possible score of the exit from gene node u"""
 
+    # TODO: Replace filler in function
+
+    uMappingNodes = ExitMappingNodeDict[u]
+    ExitMapping[u] = {}
+    for uA in uMappingNodes:
+        ExitMapping[u][uA] = {}
+        for uB in uMappingNodes:
+            ExitMapping[u][uA][uB] = 2 # TODO: This is filler, replace with actual algorithm
 
 
-def ComputeEnterMappingTable(u):
+def ComputeEnterMappingTable(u, EnterMapping, MappingNodeList):
     """This function computes the maximum possible score of each pair of mapping nodes for gene node u, and stores each
     one into the EnterMapping table for u."""
 
-    # TODO: Add function body
+    # TODO: Replace filler in function
 
+    uMappingNodes = [] # Make a new list that has only the mapping nodes that contain u
+    for node in MappingNodeList:
+        if node[0] == u:
+            uMappingNodes.append(node)
+    # Todo: create LossReachable list
+
+    EnterMapping[u] = {}
+    for uA in uMappingNodes:
+        EnterMapping[u][uA] = {}
+        for uB in uMappingNodes:
+            EnterMapping[u][uA][uB] = 2 # TODO: This is filler, replace it with the right algorithm.
 
 def PrintPathTableNicely(PathList,PathTable):
+    """Takes a PathTable (the ssd) and a Pathlist with the same length as the table, and prints a nicely formatted
+    path table. Used for debugging."""
     line = "\t"
     for Px in PathList:
         line += str(Px[0]) + "->" + str(Px[1]) + "\t"
@@ -120,7 +152,7 @@ def PrintPathTableNicely(PathList,PathTable):
     for Py in PathList:
         line = str(Py[0]) + "->" + str(Py[1]) + ":\t"
         for Px in PathList:
-            line += str(PathTable[(Px,Py)]) +"\t"
+            line += str(PathTable[(Px,Py)]) + "\t"
         print line
 
 def CalculateDiameter(filename, D, T, L):
@@ -129,7 +161,7 @@ def CalculateDiameter(filename, D, T, L):
 
     # TODO: Add a way to run the CalculateDiameter function on a previously-found reconciliation.
 
-    SpeciesTree, Graph = DP.reconcile(filename, D, T, L)
+    SpeciesTree, GeneTree, Graph = DP.reconcile(filename, D, T, L)
     print "Reconciliation Complete"
     PathSymmetricSetDifference = {} # A dict containing the SSD count for each pair of species node paths.
 
@@ -153,12 +185,24 @@ def CalculateDiameter(filename, D, T, L):
 
     MappingNodeList = Graph.keys() # This list contains each mapping node in the reconciliation graph
 
+
     PathSymmetricSetDifference, PathList, NonTrivialPathList = ComputePathSymmetricSetDifferenceTable(SpeciesTree)
-    ExitEventDict = BuildExitEventList(Graph)
+    ExitEventDict, ExitMappingNodeDict = BuildExitDicts(Graph)
+
+    PrintPathTableNicely(NonTrivialPathList,PathSymmetricSetDifference)
+
+    PostorderVertexList = [('b','e'),('b','d'),('a','b'),('a','c'),('','a')]#'pTop'] # TODO: This is a hack, do this the right way!
+
+    #for u in PostorderVertexList:
+        #if Graph[u][0][2] != None: #Then u is not a leaf node
+
+        #else:
+            #ComputeTrivialExitEventTable(u[1], )
+        #ComputeEnterMappingTable(u[1], EnterMapping, MappingNodeList)
+        #print EnterMapping[u[1]]
 
 
 
-    #PrintPathTableNicely(NonTrivialPathList,PathSymmetricSetDifference)
 
 def tst():
     CalculateDiameter("example",0,0,0)
