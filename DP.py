@@ -280,8 +280,8 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
             if eh1 != None and eh2 != None: # not a tip
                 bestSwitchLocations[(vp, hChild1)] = []
                 bestSwitchLocations[(vp, hChild2)] = []
-                bestSwitch[(ep, eh1)] = min(bestSwitch[(ep, eh)], O[(ep, eh2)])
-                bestSwitch[(ep, eh2)] = min(bestSwitch[(ep, eh)], O[(ep, eh1)])
+                bestSwitch[(ep, eh1)] = min(bestSwitch[(ep, eh)], O[(ep, eh2)]) #  This is where the cost is computed
+                bestSwitch[(ep, eh2)] = min(bestSwitch[(ep, eh)], O[(ep, eh1)]) #
                 if bestSwitch[(ep, eh1)] == bestSwitch[(ep, eh)] and \
                 bestSwitchLocations[(vp, vh)] != [(None, None)]:
                     bestSwitchLocations[(vp, hChild1)].extend\
