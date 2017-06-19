@@ -214,20 +214,26 @@ def event_to_string(event):
 def print_table_nicely(table, deliminator, name="\t", is_event=False):
     """Takes a table (a 2D dict keyed with tuples) and prints a nicely formatted table. Used for debugging."""
     print ""
-    line = "{0}".format(name)
+    line = "\033[4m{0}\033[1m".format(name)  # Underline top row, bold column headers
     for column in table:
         if is_event:
             line += "\t{0}".format(event_to_string(column))
         else:
             line += "\t{0}{1}{2}".format(str(column[0]), deliminator, str(column[1]))
-    print line
+    print line + "\033[0m"
     for row in table:
+        line = "\t\033[1m"  # Add bolding to row headers
         if is_event:
-            line = "\t{0}\t".format(event_to_string(row))
+            line += "{0}\t".format(event_to_string(row))
         else:
-            line = "\t{0}{1}{2}\t".format(str(row[0]), deliminator, str(row[1]))
+            line += "{0}{1}{2}\t".format(str(row[0]), deliminator, str(row[1]))
+        line += "\033[0m"  # Remove bolding for entries
         for column in table:
+            if row == column:
+                line += "\033[33m"  # Highlight diagonals
             line += str(table[column][row]) + "\t"
+            if row == column:
+                line += "\033[0m"
         print line
 
 
@@ -246,7 +252,7 @@ def sanitize_graph(graph):
                 graph[key][i] = tuple(event)
 
 
-def calculate_diameter(filename, D, T, L):
+def calculate_diameter(filename, D, T, L, debug=False):
     """This function computes the diameter of space of MPRs in a DTL reconciliation problem,
     as measured by the symmetric set distance between the events of the two reconciliations of the pair
      that has the highest such difference."""
@@ -290,7 +296,9 @@ def calculate_diameter(filename, D, T, L):
         compute_path_symmetric_set_difference_table(species_tree, species_tree_root)
 
     exit_event_graph, exit_event_dict, exit_mapping_node_dict = build_exit_dicts(graph)
-    print_table_nicely(path_symmetric_set_difference, "->", "[[SSD]]:")
+
+    if debug:
+        print_table_nicely(path_symmetric_set_difference, "->", "[[SSD]]:")
 
     postorder_gene_vertices = gene_tree.keys()
     postorder_gene_vertices.reverse()  # TODO: check to see if this is always in postorder (probably not)
@@ -308,13 +316,19 @@ def calculate_diameter(filename, D, T, L):
             compute_trivial_exit_event_table(u, exit_event_scores)
         compute_exit_mapping_table(u, exit_mapping_scores, exit_event_scores, exit_mapping_node_dict, exit_event_graph)
         compute_enter_mapping_table(u, enter_mapping_scores, exit_mapping_scores, mapping_node_list, graph, path_symmetric_set_difference)
+        if debug:
+            print_table_nicely(exit_event_scores[u], ", ", "ExitEventS({0})".format(u), True)
+            print_table_nicely(exit_mapping_scores[u], "", "ExitMapS({0})".format(u))
+            print_table_nicely(enter_mapping_scores[u], "", "EnterMapS({0})".format(u))
+    total_max = 0
+    for uA in enter_mapping_scores[gene_tree_root]:
+        for uB in enter_mapping_scores[gene_tree_root][uA]:
+            total_max = max(enter_mapping_scores[gene_tree_root][uA][uB], total_max)
 
-        print_table_nicely(exit_event_scores[u], ", ", "ExitEventS({0})".format(u), True)
-        print_table_nicely(exit_mapping_scores[u], "", "ExitMapS({0})".format(u))
-        print_table_nicely(enter_mapping_scores[u], "", "EnterMapS({0})".format(u))
+    print "The diameter of the given reconciliation graph is \033[33m\033[1m{0}\033[0m".format(total_max)
 
 
 def t():
     """A function to call calculate_diameter with some testing values, because typing that name fully is slower overall
      than writing this function (and this docstring)"""
-    return calculate_diameter("example", 0, 0, 0)
+    return calculate_diameter("example", 0, 0, 0, True)
