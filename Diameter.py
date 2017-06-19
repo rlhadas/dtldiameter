@@ -1,12 +1,11 @@
 import DP
 
 
-# TODO: Find out what Jordan's original algorithm for finding the intersections between two paths was, and see if mine is better
-# TODO: Find out what Group(u) means computationally, and whether that is better than what I have done
+# TODO: Compare Jordan's algorithm to find the intersection with mine to find the SSD
 
 def reformat_tree(tree, root):
     """A recursive function that changes the format of a (species or gene) tree from edge to vertex, for example:
-    ('A','B'): ('A','B',('B',C1),('B',C2)) would become 'B':(C1,C2). It returns the tree and the root."""
+    ('A','B'): ('A','B',('B',C1),('B',C2)) would become 'B':(C1,C2). It returns the tree (in preorder) and the root."""
 
     new_root = root[1] if isinstance(root, tuple) else tree[root][1]  # This line catches the "xTop" handle
 
@@ -221,20 +220,27 @@ def print_table_nicely(table, deliminator, name="\t", is_event=False):
         else:
             line += "\t{0}{1}{2}".format(str(column[0]), deliminator, str(column[1]))
     print line + "\033[0m"
+
+    row_num = 0  # Used to alternate row colors
+
     for row in table:
-        line = "\t\033[1m"  # Add bolding to row headers
+        row_num += 1
+        line_color = "\033[37m" if row_num % 2 == 0 else "\033[0m"
+
+        line = line_color + "\t\033[4m\033[1m"  # Add bolding and underline to row headers
         if is_event:
-            line += "{0}\t".format(event_to_string(row))
+            line += "{0}".format(event_to_string(row))
         else:
-            line += "{0}{1}{2}\t".format(str(row[0]), deliminator, str(row[1]))
-        line += "\033[0m"  # Remove bolding for entries
+            line += "{0}{1}{2}".format(str(row[0]), deliminator, str(row[1]))
+        line += "\033[0m\t" + line_color  # Remove bolding for entries, then return to line color
         for column in table:
-            if row == column:
-                line += "\033[33m"  # Highlight diagonals
+            #if row == column:
+            #    line += "\033[33m"  # Highlight diagonals
             line += str(table[column][row]) + "\t"
-            if row == column:
-                line += "\033[0m"
+            #if row == column:
+            #    line += line_color
         print line
+    print "\033[0m"  # Return to default color
 
 
 def sanitize_graph(graph):
@@ -301,7 +307,7 @@ def calculate_diameter(filename, D, T, L, debug=False):
         print_table_nicely(path_symmetric_set_difference, "->", "[[SSD]]:")
 
     postorder_gene_vertices = gene_tree.keys()
-    postorder_gene_vertices.reverse()  # TODO: check to see if this is always in postorder (probably not)
+    postorder_gene_vertices.reverse() # reformat_tree returns the tree in preorder, so reversing it puts it in postorder
     for u in postorder_gene_vertices:
         enter_mapping_scores[u] = {}
         exit_mapping_scores[u] = {}
