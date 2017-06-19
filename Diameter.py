@@ -69,10 +69,12 @@ def compute_path_symmetric_set_difference_table(species_tree, species_tree_root)
         if path[0] == path[1]:
             non_trivial_path_list.remove(path)
 
-    for path_a in non_trivial_path_list:
+    #  If we decide to not include trivial paths, we will use the non_trivial_path_list
+
+    for path_a in path_list:
         a_nodes = frozenset(path_nodes[path_a])
         ssd[path_a] = {}
-        for path_b in non_trivial_path_list:
+        for path_b in path_list:
             b_nodes = frozenset(path_nodes[path_b])
             ssd[path_a][path_b] = len(a_nodes.symmetric_difference(b_nodes))
 
@@ -104,15 +106,15 @@ def build_exit_dicts(graph):
     return exit_event_graph, exit_event_dict, exit_mapping_dict
 
 
-def compute_trivial_exit_event_table(u, exit_event):
+def compute_trivial_exit_event_table(u, exit_event_scores):
     """This function computes and stores the score of the exit event on a leaf node 'u' of the gene tree.
     As this event will always be a C event that is shared by all nodes, this value will always be 0."""
-    exit_event[u] = {}
-    exit_event[u][('C', (None, None), (None, None))] = {}
-    exit_event[u][('C', (None, None), (None, None))][('C', (None, None), (None, None))] = 0
+    exit_event_scores[u] = {}
+    exit_event_scores[u][('C', (None, None), (None, None))] = {}
+    exit_event_scores[u][('C', (None, None), (None, None))][('C', (None, None), (None, None))] = 0
 
 
-def compute_exit_event_table(u, exit_event, enter_mapping, exit_event_list):
+def compute_exit_event_table(u, exit_event_scores, enter_mapping_scores, exit_event_list):
     """This function computes and stores the score of the exit event on a non-leaf node 'u' of the gene tree."""
 
     # TODO: Make sure this function provides accurate values
@@ -123,7 +125,7 @@ def compute_exit_event_table(u, exit_event, enter_mapping, exit_event_list):
         # B and C are the species nodes of the two mapping nodes of e1
         B = e1[1][1]
         C = e1[2][1]
-        exit_event[u][e1] = {}
+        exit_event_scores[u][e1] = {}
         for e2 in exit_event_list[u]:
             # E and F are the species nodes of the two mapping nodes of e2
             # We need to account for the case that the children of u are in opposite order between the two events
@@ -138,26 +140,26 @@ def compute_exit_event_table(u, exit_event, enter_mapping, exit_event_list):
             uE = (child1, E)
             uC = (child2, C)
             uF = (child2, F)
-            exit_event[u][e1][e2] = enter_mapping[child1][uB][uE] \
-                                    + enter_mapping[child2][uC][uF] \
-                                    + (1 if e1 != e2 else 0)
+            exit_event_scores[u][e1][e2] = enter_mapping_scores[child1][uB][uE] \
+                                           + enter_mapping_scores[child2][uC][uF] \
+                                           + (1 if e1 != e2 else 0)
 
 
-def compute_exit_mapping_table(u, exit_mapping, exit_event, exit_mapping_node_dict, exit_event_graph):
+def compute_exit_mapping_table(u, exit_mapping_scores, exit_event_scores, exit_mapping_node_dict, exit_event_graph):
     """This function computes and stores the maximum possible score of the exit from gene node u"""
 
     # TODO: Make sure this function provides accurate values
 
     u_mapping_nodes = exit_mapping_node_dict[u]
-    exit_mapping[u] = {}
+    exit_mapping_scores[u] = {}
     for uA in u_mapping_nodes:
-        exit_mapping[u][uA] = {}
+        exit_mapping_scores[u][uA] = {}
         for uB in u_mapping_nodes:
             max_value = 0
             for E1 in exit_event_graph[uA]:
                 for E2 in exit_event_graph[uB]:
-                    max_value = max(exit_event[u][E1][E2], max_value)
-            exit_mapping[u][uA][uB] = max_value
+                    max_value = max(exit_event_scores[u][E1][E2], max_value)
+            exit_mapping_scores[u][uA][uB] = max_value
 
 
 def create_loss_reachable(graph, root_mapping_node):
@@ -167,16 +169,13 @@ def create_loss_reachable(graph, root_mapping_node):
 
     loss_events = filter(lambda e: e[0] == 'L', graph[root_mapping_node])  # Grab all loss events
     for Event in loss_events:
-        print Event
         loss_reachable += create_loss_reachable(graph, Event[1])
-    return loss_reachable + [root_mapping_node]  # TODO: Add this node (and make sure the overall root node is not added)
+    return loss_reachable + [root_mapping_node]
 
 
-def compute_enter_mapping_table(u, enter_mapping, mapping_node_list, graph, ssd):
+def compute_enter_mapping_table(u, enter_mapping_scores, exit_mapping_scores, mapping_node_list, graph, ssd):
     """This function computes the maximum possible score of each pair of mapping nodes for gene node u, and stores each
-    one into the enter_mapping table for u."""
-
-    # TODO: Replace filler in function
+    one into the enter_mapping_scores table for u."""
 
     u_mapping_nodes = []  # Make a new list that has only the mapping nodes that contain u
     for node in mapping_node_list:
@@ -187,14 +186,24 @@ def compute_enter_mapping_table(u, enter_mapping, mapping_node_list, graph, ssd)
 
     for mapping_node in u_mapping_nodes:
         loss_reachable[mapping_node] = create_loss_reachable(graph, mapping_node)
-        loss_reachable[mapping_node].remove(mapping_node)  # You can't reach the root mapping node from itself
-        print loss_reachable[mapping_node]
 
-    enter_mapping[u] = {}
+    enter_mapping_scores[u] = {}
     for uA in u_mapping_nodes:
-        enter_mapping[u][uA] = {}
+        enter_mapping_scores[u][uA] = {}
         for uB in u_mapping_nodes:
-            enter_mapping[u][uA][uB] = 2  # TODO: This is filler, replace it with the right algorithm.
+            max_score = 0
+            for uC in loss_reachable[uA]:
+                for uD in loss_reachable[uB]:
+                    score_loss = ssd[(uA[1], uC[1])][(uB[1], uD[1])]
+                    #  Sometimes, we consider values for uC and uD that do not have entries in exit_mapping_scores[u].
+                    #  I think the correct solution is to stop and move to the next value, because this situation
+                    #  means that that combination of uC and uD are not possible reconciliations.
+                    #  If so, it would probably make more sense to strip those values from the list we consider
+                    if not (uC in exit_mapping_scores[u] and uD in exit_mapping_scores[u][uC]):
+                        break  # TODO: Find out if this is the correct solution for this situation
+                    score_rest = exit_mapping_scores[u][uC][uD]
+                    max_score = max(max_score, score_loss + score_rest)
+            enter_mapping_scores[u][uA][uB] = max_score
 
 
 def event_to_string(event):
@@ -258,7 +267,7 @@ def calculate_diameter(filename, D, T, L):
 
     non_trivial_path_list = []  # A subset of the elements in path_list where src != dest
 
-    # The key format for the next three dicts are as follows: (u, x, y), where u is a node on the gene tree, and
+    # The key format for the next three dicts are as follows: [u][x][y], where u is a node on the gene tree, and
     # x and y are either event nodes (represented as E1 and E2) or mapping nodes (represented as uA and uB).
     # TODO: Clear entries of these dicts when they are no longer needed
 
@@ -295,14 +304,14 @@ def calculate_diameter(filename, D, T, L):
             assert enter_mapping_scores[gene_tree[u][0]] != {} and \
                    enter_mapping_scores[gene_tree[u][0]] != {}
             compute_exit_event_table(u, exit_event_scores, enter_mapping_scores, exit_event_dict)
-        else:  # u IS a leaf node, and therefore its exit_event_scores table exit_event_scores[u] is trivial
+        else:  # u IS a leaf node, and therefore its exit_event_scores table, exit_event_scores[u], is trivial
             compute_trivial_exit_event_table(u, exit_event_scores)
         compute_exit_mapping_table(u, exit_mapping_scores, exit_event_scores, exit_mapping_node_dict, exit_event_graph)
-        compute_enter_mapping_table(u, enter_mapping_scores, mapping_node_list, graph, path_symmetric_set_difference)
+        compute_enter_mapping_table(u, enter_mapping_scores, exit_mapping_scores, mapping_node_list, graph, path_symmetric_set_difference)
 
-        print_table_nicely(exit_event_scores[u], ", ", "exit_event_scores({0})".format(u), True)
-        print_table_nicely(exit_mapping_scores[u], "", "exit_mapping_scores({0})".format(u))
-        print_table_nicely(enter_mapping_scores[u], "", "enter_mapping_scores({0})".format(u))
+        print_table_nicely(exit_event_scores[u], ", ", "ExitEventS({0})".format(u), True)
+        print_table_nicely(exit_mapping_scores[u], "", "ExitMapS({0})".format(u))
+        print_table_nicely(enter_mapping_scores[u], "", "EnterMapS({0})".format(u))
 
 
 def t():
