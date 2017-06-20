@@ -147,8 +147,6 @@ def compute_exit_event_table(u, exit_event_scores, enter_mapping_scores, exit_ev
 def compute_exit_mapping_table(u, exit_mapping_scores, exit_event_scores, exit_mapping_node_dict, exit_event_graph):
     """This function computes and stores the maximum possible score of the exit from gene node u"""
 
-    # TODO: Make sure this function provides accurate values
-
     u_mapping_nodes = exit_mapping_node_dict[u]
     exit_mapping_scores[u] = {}
     for uA in u_mapping_nodes:
@@ -192,14 +190,14 @@ def compute_enter_mapping_table(u, enter_mapping_scores, exit_mapping_scores, ma
         for uB in u_mapping_nodes:
             max_score = 0
             for uC in loss_reachable[uA]:
+                #  Sometimes, we consider values for uC and uD that do not have entries in exit_mapping_scores[u].
+                #  This means they do not have exit events, and we can ignore them.
+                if not uC in exit_mapping_scores[u]:
+                    break
                 for uD in loss_reachable[uB]:
+                    if not uD in exit_mapping_scores[u][uC]:
+                        break
                     score_loss = ssd[(uA[1], uC[1])][(uB[1], uD[1])]
-                    #  Sometimes, we consider values for uC and uD that do not have entries in exit_mapping_scores[u].
-                    #  I think the correct solution is to stop and move to the next value, because this situation
-                    #  means that that combination of uC and uD are not possible reconciliations.
-                    #  If so, it would probably make more sense to strip those values from the list we consider
-                    if not (uC in exit_mapping_scores[u] and uD in exit_mapping_scores[u][uC]):
-                        break  # TODO: Find out if this is the correct solution for this situation
                     score_rest = exit_mapping_scores[u][uC][uD]
                     max_score = max(max_score, score_loss + score_rest)
             enter_mapping_scores[u][uA][uB] = max_score
