@@ -1,5 +1,5 @@
 import DP
-
+import time
 
 # TODO: Compare Jordan's algorithm to find the intersection with mine to find the SSD
 
@@ -141,7 +141,7 @@ def compute_exit_event_table(u, exit_event_scores, enter_mapping_scores, exit_ev
             uF = (child2, F)
             exit_event_scores[u][e1][e2] = enter_mapping_scores[child1][uB][uE] \
                                            + enter_mapping_scores[child2][uC][uF] \
-                                           + (1 if e1 != e2 else 0)
+                                           + (2 if e1 != e2 else 0)
 
 
 def compute_exit_mapping_table(u, exit_mapping_scores, exit_event_scores, exit_mapping_node_dict, exit_event_graph):
@@ -258,15 +258,21 @@ def sanitize_graph(graph):
                 graph[key][i] = tuple(event)
 
 
-def calculate_diameter(filename, D, T, L, debug=False):
+def calculate_diameter_from_file(filename, D, T, L, debug=False):
+    """Calculate the diameter, but also do the reconciliation first."""
+    edge_species_tree, edge_gene_tree, graph = DP.reconcile(filename, D, T, L)
+    print "Reconciliation Complete"
+    calculate_diameter(edge_gene_tree, edge_species_tree, graph, debug)
+
+
+def calculate_diameter(edge_gene_tree, edge_species_tree, graph, debug=False):
     """This function computes the diameter of space of MPRs in a DTL reconciliation problem,
     as measured by the symmetric set distance between the events of the two reconciliations of the pair
      that has the highest such difference."""
 
     # TODO: Add a way to run the calculate_diameter function on a previously-found reconciliation.
 
-    edge_species_tree, edge_gene_tree, graph = DP.reconcile(filename, D, T, L)
-    print "Reconciliation Complete"
+    start_time = time.clock()
 
     species_tree, species_tree_root = reformat_tree(edge_species_tree, "hTop")
     gene_tree, gene_tree_root = reformat_tree(edge_gene_tree, "pTop")
@@ -332,9 +338,11 @@ def calculate_diameter(filename, D, T, L, debug=False):
             total_max = max(enter_mapping_scores[gene_tree_root][uA][uB], total_max)
 
     print "The diameter of the given reconciliation graph is \033[33m\033[1m{0}\033[0m".format(total_max)
+    if not debug:
+        print "Done in \033[33m\033[1m{0} seconds\033[0m".format(time.clock() - start_time)
 
 
-def t():
+def t(file_name="example"):
     """A function to call calculate_diameter with some testing values, because typing that name fully is slower overall
      than writing this function (and this docstring)"""
-    return calculate_diameter("example", 0, 0, 0, True)
+    return calculate_diameter_from_file(file_name, 0, 0, 0, True)
