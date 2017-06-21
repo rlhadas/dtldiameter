@@ -3,6 +3,7 @@ import time
 
 # TODO: Compare Jordan's algorithm to find the intersection with mine to find the SSD
 
+
 def reformat_tree(tree, root):
     """A recursive function that changes the format of a (species or gene) tree from edge to vertex, for example:
     ('A','B'): ('A','B',('B',C1),('B',C2)) would become 'B':(C1,C2). It returns the tree (in preorder) and the root."""
@@ -14,11 +15,11 @@ def reformat_tree(tree, root):
 
     new_tree = {new_root: (child1, child2)}
     if child1 is not None:  # If this node has children, then we need to add their children's subtrees to the dict
-        Child1Tree, _ = reformat_tree(tree, tree[root][2])
-        new_tree.update(Child1Tree)
+        child1_tree, _ = reformat_tree(tree, tree[root][2])
+        new_tree.update(child1_tree)
     if child2 is not None:
-        Child2Tree, _ = reformat_tree(tree, tree[root][3])
-        new_tree.update(Child2Tree)
+        child2_tree, _ = reformat_tree(tree, tree[root][3])
+        new_tree.update(child2_tree)
 
     return new_tree, new_root
 
@@ -32,12 +33,12 @@ def find_valid_paths(root, previous_values, tree):
     path_nodes = {}
     for i in range(0, len(next_values)):
         source_node = next_values[i]
-        new_path = (source_node, root)  # This becomes every path that ends in this value, including A->A
+        new_path = (tree[source_node][1], root[1])  # This becomes every path that ends in this value, including A->A
         paths += [new_path]
-        path_nodes[new_path] = next_values[i:]  # We need to add every node after and including the source_node
+        path_nodes[new_path] = next_values[i:len(next_values)-1]  # We need to add every node after and including the source_node
 
-    child1 = tree[root][0]
-    child2 = tree[root][1]
+    child1 = tree[root][2]
+    child2 = tree[root][3]
 
     if child1 is not None:  # Then this Node is not a leaf Node, so we need to add this Node's children
         child1_paths, child1_path_nodes = find_valid_paths(child1, next_values, tree)
@@ -53,7 +54,12 @@ def compute_path_symmetric_set_difference_table(species_tree, species_tree_root)
     """Computes the table containing the number of nodes in the symmetric set difference between any two paths on the
      species tree sTree. This is used in assigning a score to two paths' losses."""
 
+    # TODO: Convert this to edge-based
+
     path_list, path_nodes = find_valid_paths(species_tree_root, [], species_tree)
+
+    for path in path_list:
+        print "{0}: {1}".format(path, path_nodes[path])
 
     # Note: If you wish to modify the code to assign different scores for each gene node, modifying this function
     # to provide the actual lists of nodes in the SSD might be a good place to start
@@ -70,10 +76,10 @@ def compute_path_symmetric_set_difference_table(species_tree, species_tree_root)
 
     #  If we decide to not include trivial paths, we will use the non_trivial_path_list
 
-    for path_a in path_list:
+    for path_a in non_trivial_path_list:
         a_nodes = frozenset(path_nodes[path_a])
         ssd[path_a] = {}
-        for path_b in path_list:
+        for path_b in non_trivial_path_list:
             b_nodes = frozenset(path_nodes[path_b])
             ssd[path_a][path_b] = len(a_nodes.symmetric_difference(b_nodes))
 
@@ -189,17 +195,30 @@ def compute_enter_mapping_table(u, enter_mapping_scores, exit_mapping_scores, ma
         enter_mapping_scores[u][uA] = {}
         for uB in u_mapping_nodes:
             max_score = 0
+
+            temp_debug_scores = {}  # this table displays the values considered for max_score
+            for map1 in frozenset(loss_reachable[uA] + loss_reachable[uB]):
+                temp_debug_scores[map1] = {}
+                for map2 in frozenset(loss_reachable[uA] + loss_reachable[uB]):
+                    temp_debug_scores[map1][map2] = "N/A"
+
             for uC in loss_reachable[uA]:
                 #  Sometimes, we consider values for uC and uD that do not have entries in exit_mapping_scores[u].
                 #  This means they do not have exit events, and we can ignore them.
                 if not uC in exit_mapping_scores[u]:
                     break
+
                 for uD in loss_reachable[uB]:
+
                     if not uD in exit_mapping_scores[u][uC]:
                         break
                     score_loss = ssd[(uA[1], uC[1])][(uB[1], uD[1])]
                     score_rest = exit_mapping_scores[u][uC][uD]
-                    max_score = max(max_score, score_loss + score_rest)
+                    temp_debug_scores[uC][uD] = score_rest + score_loss
+                    max_score = max(max_score, (score_loss + score_rest))
+
+            print_table_nicely(temp_debug_scores,"","{4}:tmp {0}{1}:{2}{3}".format(uA[0], uA[1], uB[0], uB[1],u))
+
             enter_mapping_scores[u][uA][uB] = max_score
 
 
@@ -208,13 +227,15 @@ def event_to_string(event):
                                       str(event[2][0]), str(event[2][1]))
 
 
-def print_table_nicely(table, deliminator, name="\t", is_event=False):
+def print_table_nicely(table, deliminator, name="\t", type="map"):
     """Takes a table (a 2D dict keyed with tuples) and prints a nicely formatted table. Used for debugging."""
     print ""
     line = "\033[4m{0}\033[1m".format(name)  # Underline top row, bold column headers
     for column in table:
-        if is_event:
+        if type == "event":
             line += "\t{0}".format(event_to_string(column))
+        elif type == "path":
+            line += "\t{0}{1}{2}{3}{4}".format(column[0][0], column[0][1], deliminator, column[1][0], column[1][1])
         else:
             line += "\t{0}{1}{2}".format(str(column[0]), deliminator, str(column[1]))
     print line + "\033[0m"
@@ -226,17 +247,19 @@ def print_table_nicely(table, deliminator, name="\t", is_event=False):
         line_color = "\033[37m" if row_num % 2 == 0 else "\033[0m"
 
         line = line_color + "\t\033[4m\033[1m"  # Add bolding and underline to row headers
-        if is_event:
+        if type == "event":
             line += "{0}".format(event_to_string(row))
+        elif type == "path":
+            line += "{0}{1}{2}{3}{4}".format(row[0][0],row[0][1], deliminator, row[1][0], row[1][1])
         else:
             line += "{0}{1}{2}".format(str(row[0]), deliminator, str(row[1]))
         line += "\033[0m\t" + line_color  # Remove bolding for entries, then return to line color
         for column in table:
-            #if row == column:
-            #    line += "\033[33m"  # Highlight diagonals
+            if row == column:
+                line += "\033[33m"  # Highlight diagonals
             line += str(table[column][row]) + "\t"
-            #if row == column:
-            #    line += line_color
+            if row == column:
+                line += line_color
         print line
     print "\033[0m"  # Return to default color
 
@@ -303,7 +326,7 @@ def calculate_diameter(edge_gene_tree, edge_species_tree, graph, debug=False):
     mapping_node_list = graph.keys()  # This list contains each mapping node in the reconciliation graph
 
     path_symmetric_set_difference, path_list, non_trivial_path_list = \
-        compute_path_symmetric_set_difference_table(species_tree, species_tree_root)
+        compute_path_symmetric_set_difference_table(edge_species_tree, "hTop")
 
     exit_event_graph, exit_event_dict, exit_mapping_node_dict = build_exit_dicts(graph)
 
@@ -327,7 +350,7 @@ def calculate_diameter(edge_gene_tree, edge_species_tree, graph, debug=False):
         compute_exit_mapping_table(u, exit_mapping_scores, exit_event_scores, exit_mapping_node_dict, exit_event_graph)
         compute_enter_mapping_table(u, enter_mapping_scores, exit_mapping_scores, mapping_node_list, graph, path_symmetric_set_difference)
         if debug:
-            print_table_nicely(exit_event_scores[u], ", ", "ExitEventS({0})".format(u), True)
+            print_table_nicely(exit_event_scores[u], ", ", "ExitEventS({0})".format(u), "event")
             print_table_nicely(exit_mapping_scores[u], "", "ExitMapS({0})".format(u))
             print_table_nicely(enter_mapping_scores[u], "", "EnterMapS({0})".format(u))
     total_max = 0
@@ -343,4 +366,10 @@ def calculate_diameter(edge_gene_tree, edge_species_tree, graph, debug=False):
 def t(file_name="example"):
     """A function to call calculate_diameter with some testing values, because typing that name fully is slower overall
      than writing this function (and this docstring)"""
-    return calculate_diameter_from_file(file_name, 0, 0, 0, True)
+    calculate_diameter_from_file(file_name, 0, 0, 0, True)
+    print "Expected value: 9"
+
+
+def t2():
+    calculate_diameter_from_file("example", 1, 4, 1, True)
+    print "Expected value: 7"
