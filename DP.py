@@ -306,7 +306,7 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                 oBest[(vp, hChild1)]!=[(None, None)]:
                     bestSwitchLocations[(vp, hChild2)].extend\
                     (oBest[(vp, hChild1)])
-    for key in bestSwitchLocations:
+    for key in bestSwitchLocations: # TODO: find out what this is
         if bestSwitchLocations[key][0] == (None, None):
             bestSwitchLocations[key] = bestSwitchLocations[key][1:]
     # Add the costs of each event to the corresponding eventsDict entry
@@ -315,6 +315,7 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
 
     # Use findPath and findBestRoots to construct the DTL graph dictionary
     treeMin = findBestRoots(parasiteTree, Minimums)
+    print Minimums[treeMin[0]]  # The total cost of the best reconciliation
     DTL = findPath(treeMin, eventsDict, {})
 
     # Scores are not needed for this application, so the relevant sections have bee commented out.
@@ -439,8 +440,9 @@ def findBestRoots(Parasite, MinimumDict):
         if key[0] == Parasite['pTop'][1]:
             treeTops.append(key)
     treeMin = []
+    min_score = min([MinimumDict[root] for root in treeTops])
     for pair in treeTops:
-        if MinimumDict[pair] == min([MinimumDict[root] for root in treeTops]):
+        if MinimumDict[pair] == min_score:
             treeMin.append(pair)
     return treeMin
 
@@ -459,9 +461,9 @@ def findPath(tupleList, eventDict, uniqueDict):
     return uniqueDict
 
 def reconcile(fileName, D, T, L):
-    """Takes as input a newick file, FileName, a dupliction cost, a transfer 
-    cost, and a loss cost. This uses newickFormatReader to extract the host 
-    tree, parasite tree and tip mapping from the file and then calls DP to 
+    """Takes as input a newick file, FileName, a dupliction cost, a transfer
+    cost, and a loss cost. This uses newickFormatReader to extract the host
+    tree, parasite tree and tip mapping from the file and then calls DP to
     return the DTL reconciliation graph of the provided newick file"""
     # Note: I have made modifications to the return statement to make Diameter.py possible without re-reconciling.
     host, paras, phi = newickFormatReader.getInput(fileName)
