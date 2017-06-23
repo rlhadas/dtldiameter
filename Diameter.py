@@ -1,19 +1,19 @@
 import DP
 import time
+from collections import OrderedDict
 
 # TODO: Compare Jordan's algorithm to find the intersection with mine to find the SSD
 
 
 def reformat_tree(tree, root):
     """A recursive function that changes the format of a (species or gene) tree from edge to vertex, for example:
-    ('A','B'): ('A','B',('B',C1),('B',C2)) would become 'B':(C1,C2). It returns the tree (in preorder) and the root."""
+    ('A','B'): ('A','B',('B',C1),('B',C2)) would become 'B':(C1,C2). It returns the tree (in postorder) and the root."""
 
     new_root = root[1] if isinstance(root, tuple) else tree[root][1]  # This line catches the "xTop" handle
 
     child1 = tree[root][2][1] if tree[root][2] is not None else None  # These lines handle the leaves, where
     child2 = tree[root][3][1] if tree[root][3] is not None else None  # there is None in the place of a tuple
-
-    new_tree = {new_root: (child1, child2)}
+    new_tree = OrderedDict() # This has to be an OrderedDict, otherwise we can't guarantee it's in postorder
     if child1 is not None:  # If this node has children, then we need to add their children's subtrees to the dict
         child1_tree, _ = reformat_tree(tree, tree[root][2])
         new_tree.update(child1_tree)
@@ -21,45 +21,45 @@ def reformat_tree(tree, root):
         child2_tree, _ = reformat_tree(tree, tree[root][3])
         new_tree.update(child2_tree)
 
+    new_tree.update({new_root: (child1, child2)})  # We add this node last, to ensure postorderness.
     return new_tree, new_root
 
 
-def find_valid_paths(root, previous_values, tree):
+def find_valid_paths(root, previous_edges, tree):
     """A recursive algorithm to find all of the valid paths through a binary tree, as well as a dict containing the
     nodes in each path."""
 
-    next_values = previous_values + [root]  # This list contains every node we visited to get here from the root
+    next_edges = previous_edges + [root]  # This list contains every node we visited to get here from the root
     paths = []
-    path_nodes = {}
-    for i in range(0, len(next_values)):
-        source_node = next_values[i]
-        new_path = (tree[source_node][1], root[1])  # This becomes every path that ends in this value, including A->A
+    path_edgess = {}  # This is the edges contained in each path.
+    for i in range(0, len(next_edges)):
+        source_node = next_edges[i]
+        # new_path becomes every path that ends in this value, including A->A
+        if i >= len(next_edges)-1:
+            new_path = (tree[source_node][1], tree[source_node][1])  # An ugly hack to account for the top of the tree
+        else:
+            new_path = (tree[source_node][1], root[1])  # This is what we should always be able to do
         paths += [new_path]
-        path_nodes[new_path] = next_values[i:len(next_values)-1]  # We need to add every node after and including the source_node
+        path_edgess[new_path] = next_edges[i+1:len(next_edges)]  # This is the list of edges
 
     child1 = tree[root][2]
     child2 = tree[root][3]
 
     if child1 is not None:  # Then this Node is not a leaf Node, so we need to add this Node's children
-        child1_paths, child1_path_nodes = find_valid_paths(child1, next_values, tree)
-        child2_paths, child2_path_nodes = find_valid_paths(child2, next_values, tree)
+        child1_paths, child1_path_nodes = find_valid_paths(child1, next_edges, tree)
+        child2_paths, child2_path_nodes = find_valid_paths(child2, next_edges, tree)
         paths += child1_paths + child2_paths
         child1_path_nodes.update(child2_path_nodes)
-        path_nodes.update(child1_path_nodes)
+        path_edgess.update(child1_path_nodes)
         # Otherwise, we have reached the end of the tree (the base case)
-    return paths, path_nodes
+    return paths, path_edgess
 
 
 def compute_path_symmetric_set_difference_table(species_tree, species_tree_root):
     """Computes the table containing the number of nodes in the symmetric set difference between any two paths on the
      species tree sTree. This is used in assigning a score to two paths' losses."""
 
-    # TODO: Convert this to edge-based
-
     path_list, path_nodes = find_valid_paths(species_tree_root, [], species_tree)
-
-    for path in path_list:
-        print "{0}: {1}".format(path, path_nodes[path])
 
     # Note: If you wish to modify the code to assign different scores for each gene node, modifying this function
     # to provide the actual lists of nodes in the SSD might be a good place to start
@@ -76,10 +76,10 @@ def compute_path_symmetric_set_difference_table(species_tree, species_tree_root)
 
     #  If we decide to not include trivial paths, we will use the non_trivial_path_list
 
-    for path_a in non_trivial_path_list:
+    for path_a in path_list:
         a_nodes = frozenset(path_nodes[path_a])
         ssd[path_a] = {}
-        for path_b in non_trivial_path_list:
+        for path_b in path_list:
             b_nodes = frozenset(path_nodes[path_b])
             ssd[path_a][path_b] = len(a_nodes.symmetric_difference(b_nodes))
 
@@ -217,7 +217,7 @@ def compute_enter_mapping_table(u, enter_mapping_scores, exit_mapping_scores, ma
                     temp_debug_scores[uC][uD] = score_rest + score_loss
                     max_score = max(max_score, (score_loss + score_rest))
 
-            print_table_nicely(temp_debug_scores,"","{4}:tmp {0}{1}:{2}{3}".format(uA[0], uA[1], uB[0], uB[1],u))
+            #print_table_nicely(temp_debug_scores,"","{4}:tmp {0}{1}:{2}{3}".format(uA[0], uA[1], uB[0], uB[1],u))
 
             enter_mapping_scores[u][uA][uB] = max_score
 
@@ -229,7 +229,12 @@ def event_to_string(event):
 
 def print_table_nicely(table, deliminator, name="\t", type="map"):
     """Takes a table (a 2D dict keyed with tuples) and prints a nicely formatted table. Used for debugging."""
+
     print ""
+    if len(table) > 30:  # Don't spend too long displaying tables.
+        print "Table '{1}' is {0}x{0}, which is bigger than the max size of 30.".format(len(table),name)
+        return
+
     line = "\033[4m{0}\033[1m".format(name)  # Underline top row, bold column headers
     for column in table:
         if type == "event":
@@ -331,16 +336,16 @@ def calculate_diameter(edge_gene_tree, edge_species_tree, graph, debug=False):
     exit_event_graph, exit_event_dict, exit_mapping_node_dict = build_exit_dicts(graph)
 
     if debug:
-        print_table_nicely(path_symmetric_set_difference, "->", "[[SSD]]:")
+        print_table_nicely(path_symmetric_set_difference, "->", "[[SSD]]:") #Wayyy too long on large files
 
     postorder_gene_vertices = gene_tree.keys()
-    postorder_gene_vertices.reverse() # reformat_tree returns the tree in preorder, so reversing it puts it in postorder
     for u in postorder_gene_vertices:
         enter_mapping_scores[u] = {}
         exit_mapping_scores[u] = {}
         exit_event_scores[u] = {}
 
     for u in postorder_gene_vertices:
+
         if gene_tree[u][0] is not None:  # Then u is not a leaf node
             assert enter_mapping_scores[gene_tree[u][0]] != {} and \
                    enter_mapping_scores[gene_tree[u][0]] != {}
@@ -363,13 +368,16 @@ def calculate_diameter(edge_gene_tree, edge_species_tree, graph, debug=False):
         print "Done in \033[33m\033[1m{0} seconds\033[0m".format(time.clock() - start_time)
 
 
+def c(file_name="example", D=0, T=0, L=0, Debug=True):
+    calculate_diameter_from_file(file_name, D, T, L, Debug)
+
 def t(file_name="example"):
     """A function to call calculate_diameter with some testing values, because typing that name fully is slower overall
      than writing this function (and this docstring)"""
     calculate_diameter_from_file(file_name, 0, 0, 0, True)
-    print "Expected value: 9"
+    print "Expected value: 11"
 
 
-def t2():
-    calculate_diameter_from_file("example", 1, 4, 1, True)
-    print "Expected value: 7"
+def t2(file_name="example"):
+    calculate_diameter_from_file(file_name, 1, 4, 1, True)
+    print "Expected value: 8"
