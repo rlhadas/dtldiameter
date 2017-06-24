@@ -73,8 +73,8 @@ def findExtrema(csv_file):
     #ax[1][0].set_ylabel("DP Time (seconds)")
     #ax[1][0].grid()
 
-    ax[0][1].hist(diameter_list, 100)
-    ax[0][1].set_xlabel("Diameter")
+    ax[0][1].hist(diameter_over_gene_list, 100)
+    ax[0][1].set_xlabel("Diameter (normalized to gene count)")
     ax[0][1].set_ylabel("Number of Results")
     ax[0][1].grid()
     #ax[1][1].scatter(diameter_over_gene_list, diameter_timings, c=gene_count_list)

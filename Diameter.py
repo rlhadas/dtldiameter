@@ -370,8 +370,9 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog.csv", debu
 
     start_time = time.clock()
 
-    edge_species_tree, edge_gene_tree, graph = DP.reconcile(filename, D, T, L)
-    mpr_count = 0  # TODO: Find this
+    edge_species_tree, edge_gene_tree, graph, mpr_count = DP.reconcile(filename, D, T, L)
+    print mpr_count
+
 
     DP_time_taken = time.clock() - start_time
     print "Reconciliation Complete in \033[33m\033[1m{0} seconds\033[0m".format(DP_time_taken)
