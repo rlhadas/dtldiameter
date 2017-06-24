@@ -14,9 +14,9 @@
 # the DTL reconciliation graph that uses frequency scoring, as well as the
 # number of reconciliations of the host and parasite trees
 
+import copy
 import newickFormatReader
 import Greedy
-import copy
 
 Infinity = float('inf')
 
@@ -55,7 +55,8 @@ def postorder(tree, rootEdgeName):
 def DP(hostTree, parasiteTree, phi, D, T, L):
     """ Takes a hostTree, parasiteTree, tip mapping function phi, and
         duplication cost (D), transfer cost (T), and loss cost (L) and
-        returns the DTL graph in the form of a dictionary, as well as a
+        returns the DTL graph in the form of a dictionary, as well as the
+        total cost of the optimal Maximum Parsimony Reconciliation and
         the number of maximum parsimony reconciliations. The notation and 
         dynamic programming algorithm are explained in the tech report.
         Cospeciation is assumed to cost 0. """
@@ -124,7 +125,7 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                     A[(ep, eh)] = 0
 
                     # Create a contemporary event
-                    Amin = [["C", (None, None), (None, None), 1.0]]
+                    Amin = [("C", (None, None), (None, None), 1.0)]
 
                     # Give a frequency of 1 to this event
                     Score[(vp, vh)] = 1.0
@@ -145,13 +146,13 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                                  C[(ep1, eh2)] + C[(ep2, eh1)])
                     coMin = []  # List to keep track lowest cost speciation
                     if COepeh == C[(ep2, eh1)] + C[(ep1, eh2)]:
-                        coMin.append(["S", (pChild2, hChild1),
+                        coMin.append(("S", (pChild2, hChild1),
                                       (pChild1, hChild2), (Score[(pChild2, hChild1)] *
-                                                           Score[(pChild1, hChild2)])])
+                                                           Score[(pChild1, hChild2)])))
                     if COepeh == C[(ep1, eh1)] + C[(ep2, eh2)]:
-                        coMin.append(["S", (pChild1, hChild1),
+                        coMin.append(("S", (pChild1, hChild1),
                                       (pChild2, hChild2), (Score[(pChild1, hChild1)] *
-                                                           Score[(pChild2, hChild2)])])
+                                                           Score[(pChild2, hChild2)])))
                 else:
                     COepeh = Infinity
                     coMin = [Infinity]
@@ -166,11 +167,11 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
 
                 # Check which (or maybe both) option produces the minimum
                 if LOSSepeh == L + C[(ep, eh1)]:
-                    lossMin.append(["L", (vp, hChild1), (None, None),
-                                    Score[(vp, hChild1)]])
+                    lossMin.append(("L", (vp, hChild1), (None, None),
+                                    Score[(vp, hChild1)]))
                 if LOSSepeh == L + C[(ep, eh2)]:
-                    lossMin.append(["L", (vp, hChild2), (None, None),
-                                    Score[(vp, hChild2)]])
+                    lossMin.append(("L", (vp, hChild2), (None, None),
+                                    Score[(vp, hChild2)]))
                 #else:
 
                     # Per the report, the ep == eP case doesn't consider the L cost,
@@ -205,8 +206,8 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                 DUPepeh = D + C[(ep1, eh)] + C[(ep2, eh)]
 
                 # List to keep track of lowest cost duplication event
-                dupList = ["D", (pChild1, vh), (pChild2, vh),
-                           (Score[(pChild1, vh)] * Score[(pChild2, vh)])]
+                dupList = ("D", (pChild1, vh), (pChild2, vh),
+                           (Score[(pChild1, vh)] * Score[(pChild2, vh)]))
             else:
                 DUPepeh = Infinity
                 dupList = [Infinity]
@@ -237,9 +238,9 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                             Score[(pChild2, currentLoc)] = Infinity
 
                         # Append the proposed event to the list of possible switches
-                        switchList.append(["T", (pChild1, vh), (pChild2,
+                        switchList.append(("T", (pChild1, vh), (pChild2,
                                            currentLoc), (Score[(pChild1, vh)] *
-                                                         Score[(pChild2, currentLoc)])])
+                                                         Score[(pChild2, currentLoc)])))
 
                 # If ep1 switching has the lowest cost
                 elif (C[(ep2, eh)] + bestSwitch[(ep1, eh)]) < (C[(ep1, eh)] +
@@ -258,9 +259,9 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                             Score[(pChild2, currentLoc)] = Infinity
 
                         # Append the proposed event to the list of possible switches
-                        switchList.append(["T", (pChild2, vh),
+                        switchList.append(("T", (pChild2, vh),
                                            (pChild1, currentLoc), (Score[(pChild2, vh)] *
-                                                                   Score[(pChild1, currentLoc)])])
+                                                                   Score[(pChild1, currentLoc)])))
 
                 # If ep1 switching has the same cost as ep2 switching
                 else:
@@ -271,21 +272,21 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                     for location in bestSwitchLocations[(pChild2, vh)]:
                         currentLoc = location[1]
                         if currentLoc is not None:
-                            switchList.append(["T", (pChild1, vh),
+                            switchList.append(("T", (pChild1, vh),
                                                (pChild2, currentLoc), (Score[(pChild1, vh)] *
-                                                                       Score[(pChild2, currentLoc)])])
+                                                                       Score[(pChild2, currentLoc)])))
                         else:
-                            switchList.append(["T", (pChild1, vh),
-                                               (pChild2, currentLoc), Infinity])
+                            switchList.append(("T", (pChild1, vh),
+                                               (pChild2, currentLoc), Infinity))
                     for location in bestSwitchLocations[(pChild1, vh)]:
                         currentLoc = location[1]
                         if currentLoc is not None:
-                            switchList.append(["T", (pChild2, vh),
+                            switchList.append(("T", (pChild2, vh),
                                                (pChild1, currentLoc), (Score[(pChild2, vh)] *
-                                                                       Score[(pChild1, currentLoc)])])
+                                                                       Score[(pChild1, currentLoc)])))
                         else:
-                            switchList.append(["T", (pChild1, vh),
-                                               (pChild2, currentLoc), Infinity])
+                            switchList.append(("T", (pChild1, vh),
+                                               (pChild2, currentLoc), Infinity))
             else:  # vp is a tip
                 SWITCHepeh = Infinity
                 switchList = [Infinity]
@@ -403,18 +404,18 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
     for key in eventsDict:
         eventsDict[key].append(Minimums[key])
 
-    # Use findPath and findBestRoots to construct the DTL graph dictionary
+    # Use buildEventGraph and findBestRoots to construct the DTL graph dictionary
     treeMin = findBestRoots(parasiteTree, Minimums)
-    print Minimums[treeMin[0]]  # The total cost of the best reconciliation
-    DTL = findPath(treeMin, eventsDict, {})
+    DTL = buildEventGraph(treeMin, eventsDict, {})
 
-    # Scores are not needed for this application, so the relevant sections have bee commented out.
+    # The total cost of the best reconciliation
+    bestCost = Minimums[treeMin[0]]
 
-    #for key in Score.keys():
-     #   if not key in DTL:
-     #       del Score[key]
-    #DTL, numRecon = addScores(treeMin, DTL, Score)
-    return DTL#, numRecon
+    # The total number of MPRs for this optimal cost
+    nMPRs = countMPRs('B', treeMin, DTL)
+
+    # Returns the graph, the optimal cost, and the number of MPRs
+    return DTL, bestCost, nMPRs
 
 
 def preorderDTLsort(DTL, ParasiteRoot):
@@ -520,6 +521,133 @@ def addScores(treeMin, DTLDict, ScoreDict):
     return newDTL, normalize
 
 
+def LRU(maxsize=None):
+    """Memoization decorator that will help count MPRs in the graph
+    (the following function). It takes a maxsize for the LRU cache
+    and returns a function - the new countMPR function.
+    LRU acts as a decorator that will act to greatly improve runtime
+    of countMPRs via memoization"""
+
+    # Now define the memoizer, which takes the function we want to memoize
+    def memoizer(func):
+
+        # Create the cache data structure to store previous results
+        mem_cache = []
+
+        # Now get into the function
+        # This function takes the input that countMPRs does, but only
+        # really uses 'roots'
+        def use_memoizer(eventID, roots, eventGraph):
+
+            # Search the cache for our input
+            for entry in range(len(mem_cache)):
+
+                # Save the current result
+                saved_val = (mem_cache[entry][0], mem_cache[entry][1])
+
+                # If we've found a match in the cache
+                if saved_val[0] == (eventID, roots):
+
+                    # Reorganize the cache to match the LRU model
+                    mem_cache.remove(saved_val)
+                    mem_cache.append(saved_val)
+
+                    # Now return the result
+                    return saved_val[1]
+
+            # If it's not in the cache, we'll need to calculate and add it
+
+            # 'None' corresponds to no max size
+            if maxsize is not None:
+
+                # Consider whether we need more space
+                if len(mem_cache) >= maxsize:
+
+                    # Take off the least recently used element
+                    dummy = mem_cache.pop(0)
+
+            # Find the value for the given input
+            result = func(eventID, roots, eventGraph)
+
+            # Save it into the cache
+            mem_cache.append(((eventID, roots), result))
+
+            # Now return the value
+            return result
+
+        # Return the function
+        return use_memoizer
+
+    # Return the memoizer
+    return memoizer
+
+
+# Utilize the previously defined decorator
+@LRU()
+def countMPRs(eventID, roots, eventGraph):  # TODO: completely debug this function
+    """Takes a list of roots, the event (a string) that spawned those,
+    roots and an event graph (output from buildEventGraph).
+    Each root should be represented as a tuple (e.g.('a', 'A')).
+    This function recursively (with memoization) essentially
+    finds the number of unique 'paths' through the solution
+    space, and this is used as a proxy for the number of MPRs.
+    It does this by starting at the initial 'best roots' (output from
+    the findBestRoots function), and goes to those roots. It checks in the
+    eventGraph dictionary for the options of a next node for an MPR from those roots.
+    It cascades down the graph until reaching a contemporary event, at which point
+    it counts 1 MPR. The results then flow back up to the initial roots, and these
+    are added to get the total. It returns this number as an integer."""
+
+    # Initialize the count for the current set of roots
+    count = 0
+
+    # Note that the initial roots, the best reconciliation ones, have an event
+    # ID of 'B' for beginning
+    if eventID == 'B':
+
+        # Search through all given roots
+        for root in roots:
+
+            # Increment counter for each new branch created - this particular
+            # incrementation is specific to the initial branch, and will not
+            # be present in subsequent recursive calls
+            count += 1
+
+            # Add contributions from the event lists of following roots
+            count += len(eventGraph[root]) - 1
+
+            # Search through all events applicable for that root and add
+            # their counts
+            # Note we index eventGraph[root][:-1] with -1 because the
+            # last entry in an event list is a number, so we want to filter that out
+            for event in eventGraph[root][:-1]:
+
+                # Recursively add to the count
+                count += countMPRs(event[0], list(event[1:3]), eventGraph)
+
+    # It can be shown that the total count of our "paths" is equivalent to
+    # the sum of (the length of each "layer" - 1), so we only need the
+    # depth of each layer for each node
+    else:
+
+        # Iterate over both roots
+        for root in roots:
+
+            # Check to make sure we aren't searching a 'None' root
+            if root == (None, None): continue
+
+            # Add contributions from the event lists of following roots
+            count += len(eventGraph[root]) - 1
+
+            # Iterate over all events for the current
+            for event in eventGraph[root][:-1]:
+
+                # Recursively add to the count
+                count += countMPRs(event[0], list(event[1:3]), eventGraph)
+
+    return count
+
+
 def findBestRoots(Parasite, MinimumDict):
     """Takes Parasite Tree and a dictionary of minimum reconciliation costs
     and returns a list of the minimum cost reconciliation tree roots"""
@@ -535,7 +663,7 @@ def findBestRoots(Parasite, MinimumDict):
     return treeMin
 
 
-def findPath(tupleList, eventDict, uniqueDict):
+def buildEventGraph(tupleList, eventDict, uniqueDict):
     """Takes as input tupleList, a list of minimum reconciliation cost roots,
      eventDict, the dictionary of events and children for each node, and 
      uniqueDict, the dictionary of unique vertex mappings. This returns the 
@@ -545,13 +673,13 @@ def findPath(tupleList, eventDict, uniqueDict):
             uniqueDict[vertexPair] = eventDict[vertexPair]
         for event in eventDict[vertexPair][:-1]:
             for location in event:
-                if type(location) is tuple and location != (None, None):
-                    findPath([location], eventDict, uniqueDict)
+                if type(location) is tuple and location != (None, None):  # TODO: look into improving this function
+                    buildEventGraph([location], eventDict, uniqueDict)
     return uniqueDict
 
 
 def reconcile(fileName, D, T, L):
-    """Takes as input a newick file, FileName, a dupliction cost, a transfer
+    """Takes as input a newick file, FileName, a duplication cost, a transfer
     cost, and a loss cost. This uses newickFormatReader to extract the host
     tree, parasite tree and tip mapping from the file and then calls DP to
     return the DTL reconciliation graph of the provided newick file"""
