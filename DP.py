@@ -17,6 +17,7 @@
 import copy
 import newickFormatReader
 import Greedy
+import time
 
 Infinity = float('inf')
 
@@ -162,9 +163,6 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                 LOSSepeh = L + min(C[(ep, eh1)], C[(ep, eh2)])
                 lossMin = []  # List to keep track of lowest cost loss
 
-                # Take into account whether ep == eP
-                #if not (ep == "pTop"):
-
                 # Check which (or maybe both) option produces the minimum
                 if LOSSepeh == L + C[(ep, eh1)]:
                     lossMin.append(("L", (vp, hChild1), (None, None),
@@ -172,19 +170,6 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                 if LOSSepeh == L + C[(ep, eh2)]:
                     lossMin.append(("L", (vp, hChild2), (None, None),
                                     Score[(vp, hChild2)]))
-                #else:
-
-                    # Per the report, the ep == eP case doesn't consider the L cost,
-                    # so we subtract it out and change comparisons to reflect that change
-                    #LOSSepeh -= L
-
-                    # Again, check which option(s) produce the minimum
-                    #if LOSSepeh == C[(ep, eh1)]:
-                        #lossMin.append(["L", (vp, hChild1), (None, None),
-                                        #Score[(vp, hChild1)]])
-                    #if LOSSepeh == C[(ep, eh2)]:
-                        #lossMin.append(["L", (vp, hChild2), (None, None),
-                                        #Score[(vp, hChild2)]])
 
                 # Determine which event occurs for A[(ep, eh)]
                 A[(ep, eh)] = min(COepeh, LOSSepeh)
@@ -412,7 +397,7 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
     bestCost = Minimums[treeMin[0]]
 
     # The total number of MPRs for this optimal cost
-    nMPRs = countMPRs('B', treeMin, DTL)
+    nMPRs = countMPRs(True, treeMin, DTL)
 
     # Returns the graph, the optimal cost, and the number of MPRs
     return DTL, bestCost, nMPRs
@@ -526,7 +511,8 @@ def LRU(maxsize=None):
     (the following function). It takes a maxsize for the LRU cache
     and returns a function - the new countMPR function.
     LRU acts as a decorator that will act to greatly improve runtime
-    of countMPRs via memoization"""
+    of countMPRs via memoization. It uses the Least Recently Used
+    cache model to optimize"""
 
     # Now define the memoizer, which takes the function we want to memoize
     def memoizer(func):
@@ -537,7 +523,11 @@ def LRU(maxsize=None):
         # Now get into the function
         # This function takes the input that countMPRs does, but only
         # really uses 'roots'
-        def use_memoizer(eventID, roots, eventGraph):
+        def use_memoizer(start, roots, eventGraph):
+
+            # If we're running a brand new call, clear the cache
+            if start:
+                del mem_cache[:]
 
             # Search the cache for our input
             for entry in range(len(mem_cache)):
@@ -546,11 +536,11 @@ def LRU(maxsize=None):
                 saved_val = (mem_cache[entry][0], mem_cache[entry][1])
 
                 # If we've found a match in the cache
-                if saved_val[0] == (eventID, roots):
+                if saved_val[0] == roots:
 
                     # Reorganize the cache to match the LRU model
                     mem_cache.remove(saved_val)
-                    mem_cache.append(saved_val)
+                    mem_cache.insert(0, saved_val)  # Place at front of list since it was recently used
 
                     # Now return the result
                     return saved_val[1]
@@ -564,13 +554,13 @@ def LRU(maxsize=None):
                 if len(mem_cache) >= maxsize:
 
                     # Take off the least recently used element
-                    dummy = mem_cache.pop(0)
+                    dummy = mem_cache.pop()
 
             # Find the value for the given input
-            result = func(eventID, roots, eventGraph)
+            result = func(start, roots, eventGraph)
 
             # Save it into the cache
-            mem_cache.append(((eventID, roots), result))
+            mem_cache.insert(0, (roots, result))
 
             # Now return the value
             return result
@@ -584,9 +574,9 @@ def LRU(maxsize=None):
 
 # Utilize the previously defined decorator
 @LRU()
-def countMPRs(eventID, roots, eventGraph):  # TODO: completely debug this function
-    """Takes a list of roots, the event (a string) that spawned those,
-    roots and an event graph (output from buildEventGraph).
+def countMPRs(start, roots, eventGraph):  # TODO: explain algorithm better
+    """Takes a boolean value indicating whether the loop is just starting,
+    minimum cost roots in a list, and an event graph (output from buildEventGraph).
     Each root should be represented as a tuple (e.g.('a', 'A')).
     This function recursively (with memoization) essentially
     finds the number of unique 'paths' through the solution
@@ -594,27 +584,22 @@ def countMPRs(eventID, roots, eventGraph):  # TODO: completely debug this functi
     It does this by starting at the initial 'best roots' (output from
     the findBestRoots function), and goes to those roots. It checks in the
     eventGraph dictionary for the options of a next node for an MPR from those roots.
-    It cascades down the graph until reaching a contemporary event, at which point
+    It cascades down the graph until reaching a contemporaneous event, at which point
     it counts 1 MPR. The results then flow back up to the initial roots, and these
     are added to get the total. It returns this number as an integer."""
+
+    # Roots == None is the main base case that works most simply with our algorithm
+    if roots == (None, None):  # Signifies either a contemporaneous event or a single branch
+        return 1
 
     # Initialize the count for the current set of roots
     count = 0
 
-    # Note that the initial roots, the best reconciliation ones, have an event
-    # ID of 'B' for beginning
-    if eventID == 'B':
+    # Check whether this is when the function was first invoked
+    if start:
 
-        # Search through all given roots
+        # Search through all given starting roots
         for root in roots:
-
-            # Increment counter for each new branch created - this particular
-            # incrementation is specific to the initial branch, and will not
-            # be present in subsequent recursive calls
-            count += 1
-
-            # Add contributions from the event lists of following roots
-            count += len(eventGraph[root]) - 1
 
             # Search through all events applicable for that root and add
             # their counts
@@ -622,28 +607,17 @@ def countMPRs(eventID, roots, eventGraph):  # TODO: completely debug this functi
             # last entry in an event list is a number, so we want to filter that out
             for event in eventGraph[root][:-1]:
 
-                # Recursively add to the count
-                count += countMPRs(event[0], list(event[1:3]), eventGraph)
+                # Recursively add to the count, this time not calling the function as the first call (start = False)
+                count += countMPRs(False, event[1], eventGraph) * countMPRs(False, event[2], eventGraph)
 
-    # It can be shown that the total count of our "paths" is equivalent to
-    # the sum of (the length of each "layer" - 1), so we only need the
-    # depth of each layer for each node
+    # Go through the algorithm for the more frequent case where we aren't just starting the function
     else:
 
-        # Iterate over both roots
-        for root in roots:
+        # Loop over all events for the current node
+        for event in eventGraph[roots][:-1]:
 
-            # Check to make sure we aren't searching a 'None' root
-            if root == (None, None): continue
-
-            # Add contributions from the event lists of following roots
-            count += len(eventGraph[root]) - 1
-
-            # Iterate over all events for the current
-            for event in eventGraph[root][:-1]:
-
-                # Recursively add to the count
-                count += countMPRs(event[0], list(event[1:3]), eventGraph)
+            # Again, recursively add to the count
+            count += countMPRs(False, event[1], eventGraph) * countMPRs(False, event[2], eventGraph)
 
     return count
 
@@ -673,7 +647,7 @@ def buildEventGraph(tupleList, eventDict, uniqueDict):
             uniqueDict[vertexPair] = eventDict[vertexPair]
         for event in eventDict[vertexPair][:-1]:
             for location in event:
-                if type(location) is tuple and location != (None, None):  # TODO: look into improving this function
+                if type(location) is tuple and location != (None, None):
                     buildEventGraph([location], eventDict, uniqueDict)
     return uniqueDict
 
