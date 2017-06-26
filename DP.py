@@ -574,7 +574,7 @@ def LRU(maxsize=None):
 
 # Utilize the previously defined decorator
 @LRU()
-def countMPRs(start, roots, eventGraph):  # TODO: explain algorithm better
+def countMPRs(start, roots, eventGraph):
     """Takes a boolean value indicating whether the loop is just starting,
     minimum cost roots in a list, and an event graph (output from buildEventGraph).
     Each root should be represented as a tuple (e.g.('a', 'A')).
@@ -584,12 +584,12 @@ def countMPRs(start, roots, eventGraph):  # TODO: explain algorithm better
     It does this by starting at the initial 'best roots' (output from
     the findBestRoots function), and goes to those roots. It checks in the
     eventGraph dictionary for the options of a next node for an MPR from those roots.
-    It cascades down the graph until reaching a contemporaneous event, at which point
-    it counts 1 MPR. The results then flow back up to the initial roots, and these
+    It cascades down the graph/tree until reaching a (None, None) map, which is counted
+    as the base case. The results then flow back up to the initial roots, and these
     are added to get the total. It returns this number as an integer."""
 
     # Roots == None is the main base case that works most simply with our algorithm
-    if roots == (None, None):  # Signifies either a contemporaneous event or a single branch
+    if roots == (None, None):  # Signifies either a contemporary event or a single branch
         return 1
 
     # Initialize the count for the current set of roots
