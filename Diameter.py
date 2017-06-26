@@ -1,5 +1,7 @@
 import DP
 import time
+import csv
+import os.path
 from collections import OrderedDict
 
 # TODO: Compare Jordan's algorithm to find the intersection with mine to find the SSD
@@ -7,22 +9,26 @@ from collections import OrderedDict
 
 def reformat_tree(tree, root):
     """A recursive function that changes the format of a (species or gene) tree from edge to vertex, for example:
-    ('A','B'): ('A','B',('B',C1),('B',C2)) would become 'B':(C1,C2). It returns the tree (in postorder) and the root."""
+    ('A','B'): ('A','B',('B',C1),('B',C2)) would become 'B':(C1,C2). It returns the tree (in postorder), the root of
+    the tree, and the number of nodes in the tree.."""
 
     new_root = root[1] if isinstance(root, tuple) else tree[root][1]  # This line catches the "xTop" handle
 
     child1 = tree[root][2][1] if tree[root][2] is not None else None  # These lines handle the leaves, where
     child2 = tree[root][3][1] if tree[root][3] is not None else None  # there is None in the place of a tuple
     new_tree = OrderedDict() # This has to be an OrderedDict, otherwise we can't guarantee it's in postorder
+    child1_count = 0  # This is the number of nodes in the subtree rooted at each of our children
+    child2_count = 0
+
     if child1 is not None:  # If this node has children, then we need to add their children's subtrees to the dict
-        child1_tree, _ = reformat_tree(tree, tree[root][2])
+        child1_tree, _, child1_count = reformat_tree(tree, tree[root][2])
         new_tree.update(child1_tree)
     if child2 is not None:
-        child2_tree, _ = reformat_tree(tree, tree[root][3])
+        child2_tree, _, child2_count = reformat_tree(tree, tree[root][3])
         new_tree.update(child2_tree)
-
     new_tree.update({new_root: (child1, child2)})  # We add this node last, to ensure postorderness.
-    return new_tree, new_root
+
+    return new_tree, new_root, (child1_count + child2_count + 1)
 
 
 def find_valid_paths(root, previous_edges, tree):
@@ -269,9 +275,9 @@ def print_table_nicely(table, deliminator, name="\t", type="map"):
     print "\033[0m"  # Return to default color
 
 
-def sanitize_graph(graph):
+def sanitize_graph(graph, gene_tree_root):
     """Cleans up the graph created by DP.py by turning events into tuples and removing scores from events.
-    This allows us to use the events as dictionary keys."""
+    This allows us to use the events as dictionary keys. It also removes any loss events on the root gene node."""
 
     for key in graph:
         # Get rid of all of the random numbers in the graph
@@ -282,29 +288,15 @@ def sanitize_graph(graph):
                 event = graph[key][i]
                 event = filter(lambda x: not isinstance(x, float), event)  # Remove more numbers
                 graph[key][i] = tuple(event)
+        if key[0] == gene_tree_root:
+            graph[key] = filter(lambda e: not e[0] == 'L', graph[key])
 
 
-def calculate_diameter_from_file(filename, D, T, L, debug=False):
-    """Calculate the diameter, but also do the reconciliation first."""
-    edge_species_tree, edge_gene_tree, graph = DP.reconcile(filename, D, T, L)
-    print "Reconciliation Complete"
-    calculate_diameter(edge_gene_tree, edge_species_tree, graph, debug)
 
-
-def calculate_diameter(edge_gene_tree, edge_species_tree, graph, debug=False):
-    """This function computes the diameter of space of MPRs in a DTL reconciliation problem,
-    as measured by the symmetric set distance between the events of the two reconciliations of the pair
-     that has the highest such difference."""
-
-    # TODO: Add a way to run the calculate_diameter function on a previously-found reconciliation.
-
-    start_time = time.clock()
-
-    species_tree, species_tree_root = reformat_tree(edge_species_tree, "hTop")
-    gene_tree, gene_tree_root = reformat_tree(edge_gene_tree, "pTop")
-
-    sanitize_graph(graph)
-
+def diameter_algorithm(edge_species_tree, gene_tree, gene_tree_root, graph, debug):
+    """This function is the one that actually computes the diameter. It initializes many dictionaries, computes the
+    symmetric set difference between every pair of paths on the species tree, and then runs the algorithm as described
+    in Jordan's paper."""
     path_symmetric_set_difference = {}  # A dict containing the SSD count for each pair of species node paths.
 
     path_list = []  # A list of all of the valid paths between two species nodes (format is (src,dest))
@@ -336,13 +328,15 @@ def calculate_diameter(edge_gene_tree, edge_species_tree, graph, debug=False):
     exit_event_graph, exit_event_dict, exit_mapping_node_dict = build_exit_dicts(graph)
 
     if debug:
-        print_table_nicely(path_symmetric_set_difference, "->", "[[SSD]]:") #Wayyy too long on large files
+        print_table_nicely(path_symmetric_set_difference, "->", "[[SSD]]:")  # Wayyy too long on large files
 
     postorder_gene_vertices = gene_tree.keys()
     for u in postorder_gene_vertices:
         enter_mapping_scores[u] = {}
         exit_mapping_scores[u] = {}
         exit_event_scores[u] = {}
+
+    # This next block is the algorithm pretty much as described in Jordan's paper.
 
     for u in postorder_gene_vertices:
 
@@ -353,31 +347,69 @@ def calculate_diameter(edge_gene_tree, edge_species_tree, graph, debug=False):
         else:  # u IS a leaf node, and therefore its exit_event_scores table, exit_event_scores[u], is trivial
             compute_trivial_exit_event_table(u, exit_event_scores)
         compute_exit_mapping_table(u, exit_mapping_scores, exit_event_scores, exit_mapping_node_dict, exit_event_graph)
-        compute_enter_mapping_table(u, enter_mapping_scores, exit_mapping_scores, mapping_node_list, graph, path_symmetric_set_difference)
+        compute_enter_mapping_table(u, enter_mapping_scores, exit_mapping_scores, mapping_node_list, graph,
+                                    path_symmetric_set_difference)
         if debug:
             print_table_nicely(exit_event_scores[u], ", ", "ExitEventS({0})".format(u), "event")
             print_table_nicely(exit_mapping_scores[u], "", "ExitMapS({0})".format(u))
             print_table_nicely(enter_mapping_scores[u], "", "EnterMapS({0})".format(u))
-    total_max = 0
+
+    diameter = 0  # The diameter will be the total maximum of the gene root's enter table.
     for uA in enter_mapping_scores[gene_tree_root]:
         for uB in enter_mapping_scores[gene_tree_root][uA]:
-            total_max = max(enter_mapping_scores[gene_tree_root][uA][uB], total_max)
+            diameter = max(enter_mapping_scores[gene_tree_root][uA][uB], diameter)
+    return diameter
 
-    print "The diameter of the given reconciliation graph is \033[33m\033[1m{0}\033[0m".format(total_max)
+
+def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog.csv", debug=False):
+    """This function computes the diameter of space of MPRs in a DTL reconciliation problem,
+     as measured by the symmetric set distance between the events of the two reconciliations of the pair
+      that has the highest such difference."""
+
+    file_exists = os.path.isfile(csv_file)
+
+    start_time = time.clock()
+
+    edge_species_tree, edge_gene_tree, graph, mpr_count = DP.reconcile(filename, D, T, L)
+    print mpr_count
+
+
+    DP_time_taken = time.clock() - start_time
+    print "Reconciliation Complete in \033[33m\033[1m{0} seconds\033[0m".format(DP_time_taken)
+
+    start_time = time.clock()
+
+    gene_tree, gene_tree_root, gene_node_count = reformat_tree(edge_gene_tree, "pTop")
+
+    sanitize_graph(graph, gene_tree_root)
+
+    diameter = diameter_algorithm(edge_species_tree, gene_tree, gene_tree_root, graph, debug)
+
+    diameter_time_taken = time.clock() - start_time
+
+    print "There were \033[33m\033[1m{0}\033[0m gene nodes.".format(gene_node_count)
+    print "The diameter of the given reconciliation graph is \033[33m\033[1m{0}\033[0m".format(diameter)
     if not debug:
-        print "Done in \033[33m\033[1m{0} seconds\033[0m".format(time.clock() - start_time)
+        print "Done in \033[33m\033[1m{0} seconds\033[0m".format(diameter_time_taken)
 
+    with open(csv_file, 'a') as output_file:
+        writer = csv.writer(output_file)
+        if not file_exists:
+            writer.writerow(["File Name", "MPR Count", "Diameter Found", "Gene Node Count","DP Computation Time", "Diameter Computation Time", "Date"])
+        writer.writerow([filename, mpr_count, diameter, gene_node_count, DP_time_taken, diameter_time_taken, time.strftime("%c")])
 
-def c(file_name="example", D=0, T=0, L=0, Debug=True):
-    calculate_diameter_from_file(file_name, D, T, L, Debug)
+def c(file_name="example", D=0, T=0, L=0, test_log="TestLog.csv", Debug=False):
+    """This method is identical to calculate_diameter_from_file, but with a shorter name that's easier to type"""
+    calculate_diameter_from_file(file_name, D, T, L, test_log, Debug)
+
 
 def t(file_name="example"):
     """A function to call calculate_diameter with some testing values, because typing that name fully is slower overall
      than writing this function (and this docstring)"""
-    calculate_diameter_from_file(file_name, 0, 0, 0, True)
+    calculate_diameter_from_file(file_name, 0, 0, 0, "TestLog.csv", True)
     print "Expected value: 11"
 
 
 def t2(file_name="example"):
-    calculate_diameter_from_file(file_name, 1, 4, 1, True)
+    calculate_diameter_from_file(file_name, 1, 4, 1, "TestLog.csv", True)
     print "Expected value: 8"

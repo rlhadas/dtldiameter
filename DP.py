@@ -320,11 +320,11 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
 
     # Scores are not needed for this application, so the relevant sections have bee commented out.
 
-    #for key in Score.keys():
-     #   if not key in DTL:
-     #       del Score[key]
-    #DTL, numRecon = addScores(treeMin, DTL, Score)
-    return DTL#, numRecon
+    for key in Score.keys():
+        if not key in DTL:
+            del Score[key]
+    DTL, numRecon = addScores(treeMin, DTL, Score)
+    return numRecon, DTL
 
 
 def preorderDTLsort(DTL, ParasiteRoot):
@@ -335,9 +335,11 @@ def preorderDTLsort(DTL, ParasiteRoot):
     orderedKeysL = []
     levelCounter = 0
     while len(orderedKeysL) < len(keysL):
+        toAdd = []
         for mapping in keysL:
             if mapping[-1] == levelCounter:
-                orderedKeysL = orderedKeysL + [mapping]
+                    toAdd += [mapping]
+        orderedKeysL = orderedKeysL + toAdd
         levelCounter += 1
     lastLevel = orderedKeysL[-1][1]
     return orderedKeysL
@@ -395,7 +397,6 @@ def addScores(treeMin, DTLDict, ScoreDict):
     preOrder1 = preorderDTLsort(DTLDict, treeMin[0][0])
     preOrder2 = preorderCheck(preOrder1)
     for root in preOrder2:
-        
         if root != (None, None):
             vertex = root[0]
 
@@ -467,4 +468,5 @@ def reconcile(fileName, D, T, L):
     return the DTL reconciliation graph of the provided newick file"""
     # Note: I have made modifications to the return statement to make Diameter.py possible without re-reconciling.
     host, paras, phi = newickFormatReader.getInput(fileName)
-    return host, paras, DP(host, paras, phi, D, T, L)
+    numRecon, graph = DP(host, paras, phi, D, T, L)
+    return host, paras, graph, numRecon
