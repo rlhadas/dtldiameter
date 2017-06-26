@@ -335,7 +335,6 @@ def preorderDTLsort(DTL, ParasiteRoot):
     orderedKeysL = []
     levelCounter = 0
     while len(orderedKeysL) < len(keysL):
-        print "KeysL len: {0}\t OrderedLen: {1}".format(len(keysL), len(orderedKeysL))
         toAdd = []
         for mapping in keysL:
             if mapping[-1] == levelCounter:
