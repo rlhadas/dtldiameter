@@ -406,7 +406,6 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
     return DTL, bestCost, nMPRs
 
 
-
 def preorderDTLsort(DTL, ParasiteRoot):
     """This takes in a DTL dictionary and parasite root and returns a sorted list, orderedKeysL, that is ordered
     by level from largest to smallest, where level 0 is the root and the highest level has tips."""
