@@ -422,7 +422,7 @@ def addScores(treeMin, DTLDict, ScoreDict):
                         parentsDict[child2] = newDTL[vertex][n][3]
 
         
-    normalize = newDTL[preOrder2[-1][0]][0][-1]
+    normalize = newDTL[preOrder2[-1][0]][0][-1]  # preOrder2[-1][0] is the last value considered in the above loop
 
 
 
