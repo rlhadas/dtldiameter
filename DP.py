@@ -666,5 +666,5 @@ def reconcile(fileName, D, T, L):
     return the DTL reconciliation graph of the provided newick file"""
     # Note: I have made modifications to the return statement to make Diameter.py possible without re-reconciling.
     host, paras, phi = newickFormatReader.getInput(fileName)
-    numRecon, graph = DP(host, paras, phi, D, T, L)
+    graph, _, numRecon = DP(host, paras, phi, D, T, L)
     return host, paras, graph, numRecon
