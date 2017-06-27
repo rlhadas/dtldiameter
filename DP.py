@@ -12,12 +12,14 @@
 # parasite tree, denoted e^P in the technical report, must be named "pTop".
 # Edited by Annalise Schweickart and Carter Slocum, July 2015 to return
 # the DTL reconciliation graph that uses frequency scoring, as well as the
-# number of reconciliations of the host and parasite trees
+# number of reconciliations of the host and parasite trees. Edited by Andrew
+# Ramirez in late June 2017 to return the number of MPRs for a given data set
+# with a time efficiency improved by about a factor of 2 relative to previous
+# methods for returning the number of MPRs.
 
 import copy
 import newickFormatReader
 import Greedy
-import time
 
 Infinity = float('inf')
 
@@ -44,6 +46,7 @@ def postorder(tree, rootEdgeName):
 
     value = tree[rootEdgeName]
     _, _, leftChildEdgeName, rightChildEdgeName = value
+
     # Base case
     if leftChildEdgeName is None:  # then rightChildEdgeName == None also
         return [rootEdgeName]
@@ -522,17 +525,17 @@ def LRU(maxsize=None):
 
         # Now get into the function
         # This function takes the input that countMPRs does, but only
-        # really uses 'roots'
+        # really uses 'roots' and 'start'
         def use_memoizer(start, roots, eventGraph):
 
-            # If we're running a brand new call, clear the cache
+            # If we're running a brand new call, clear the cache so new results aren't detected from previous calls
             if start:
                 del mem_cache[:]
 
             # Search the cache for our input
             for entry in range(len(mem_cache)):
 
-                # Save the current result
+                # Save the current result for cleaner code
                 saved_val = (mem_cache[entry][0], mem_cache[entry][1])
 
                 # If we've found a match in the cache
@@ -553,7 +556,7 @@ def LRU(maxsize=None):
                 # Consider whether we need more space
                 if len(mem_cache) >= maxsize:
 
-                    # Take off the least recently used element
+                    # Take off the least recently used element, which would be at the back of the list
                     dummy = mem_cache.pop()
 
             # Find the value for the given input
@@ -562,7 +565,7 @@ def LRU(maxsize=None):
             # Save it into the cache
             mem_cache.insert(0, (roots, result))
 
-            # Now return the value
+            # Now return the value, whether it was calculated or taken from the cache
             return result
 
         # Return the function
