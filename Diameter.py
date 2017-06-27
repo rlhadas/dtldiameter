@@ -7,7 +7,8 @@ from collections import OrderedDict
 def reformat_tree(tree, root):
     """A recursive function that changes the format of a (species or gene) tree from edge to vertex, for example:
     ('A','B'): ('A','B',('B',C1),('B',C2)) would become 'B':(C1,C2). It returns the tree (in postorder), the root of
-    the tree, and the number of nodes in the tree. The base case of this function is when """
+    the tree, and the number of nodes in the tree. The base case of this function is when there are no children for a
+    given root."""
 
     # This line catches the "xTop" handle and replaces
     new_root = root[1] if isinstance(root, tuple) else tree[root][1]
@@ -64,7 +65,9 @@ def find_valid_paths(root, previous_edges, tree):
 
 
 def find_path_lists(root, tree):
-    """A function that uses find_valid_paths"""
+    """A function that uses find_valid_paths to find all of the valid paths on the given tree,
+    and returns the list of paths, a dict containing the edges for each path, and a list of
+    non-trivial paths (where source != destination)"""
 
     paths, path_edges = find_valid_paths(root, [], tree)
 
@@ -83,22 +86,33 @@ def compute_path_symmetric_set_difference_table(path_list, path_edges):
     # to provide the actual lists of nodes in the SSD might be a good place to start
     # Alternatively, you could provide one ssd table per gene node in this function.
 
-    ssd = {}  # This is the Symmetric Set Difference table we will be returning
+    # This is the Symmetric Set Difference table we will be returning
+    ssd = {}
 
+    path_sets = {}
+
+    # Since we will need the frozenset of each path multiple times, it makes sense to pre-compute them
+    for path in path_list:
+        path_sets[path] = frozenset(path_edges[path])
+
+    # To compute that table, we iterate over each combination of paths, and find the length of the symmetric set
+    # difference between the frozensets of their path edges.
     for path_a in path_list:
-        a_nodes = frozenset(path_edges[path_a])
         ssd[path_a] = {}
         for path_b in path_list:
-            b_nodes = frozenset(path_edges[path_b])
-            ssd[path_a][path_b] = len(a_nodes.symmetric_difference(b_nodes))
+            ssd[path_a][path_b] = len(path_sets[path_a].symmetric_difference(path_sets[path_b]))
+
+    # Note: ssd[a][b] should equal ssd[b][a]. A good optimization of this function would take advantage of that
 
     return ssd
 
 def compute_lossles_path_symmetric_set_difference_table(path_list, path_edges):
     """Works like compute_path_symmetric_set_difference_table, but returns an SSD filled with all 0s"""
 
-    ssd = {}  # This is the Symmetric Set Difference table we will be returning
+    # This is the Symmetric Set Difference table we will be returning
+    ssd = {}
 
+    # To compute that table, we iterate over each combination of paths, and just enter 0.
     for path_a in path_list:
         ssd[path_a] = {}
         for path_b in path_list:
@@ -109,14 +123,27 @@ def compute_lossles_path_symmetric_set_difference_table(path_list, path_edges):
 
 def build_exit_dicts(graph):
     """Builds a dict containing lists of exit event nodes, each list keyed by the gene node."""
-    # The graph returned by DP is keyed by mapping nodes, so to get the gene node we take the first element of the key.
-    exit_event_graph = {}  # Every mapping node's list of exit events
-    exit_event_dict = {}  # Every gene node's list of exit events
-    exit_mapping_dict = {}  # Every gene node's list of mapping nodes that have exit events
+
+    # exit_event_graph is a dict that contains each exit (non-loss) event in the reconciliation graph, keyed by mapping node.
+    exit_event_graph = {}
+
+    # exit_event_dict is the same as exit_event_graph, except it is keyed by gene node.
+    exit_event_dict = {}
+
+    # exit_mapping_node_dict is a dict that contains every mapping node that contains an exit event, keyed by gene node
+    exit_mapping_dict = {}
+
+    # Here we iterate over every event node of every mapping node.
     for mapping_node in graph:
         for event in graph[mapping_node]:
-            if isinstance(event, tuple) and event[0] != 'L':  # Ignore scores and loss events
+
+            # Ignore scores and loss events
+            if isinstance(event, tuple) and event[0] != 'L':
+
                 gene_node = mapping_node[0]
+
+                # For each of these three blocks, the if statement initializes the list if necessary, and then adds the
+                # correct element into the list
                 if gene_node not in exit_event_dict:
                     exit_event_dict[gene_node] = []
                 exit_event_dict[gene_node].append(event)
@@ -140,17 +167,18 @@ def compute_trivial_exit_event_table(u, exit_event_scores):
     exit_event_scores[u][('C', (None, None), (None, None))][('C', (None, None), (None, None))] = 0
 
 
-def compute_exit_event_table(u, exit_event_scores, enter_mapping_scores, exit_event_list):
+def compute_exit_event_table(u, exit_event_scores, enter_mapping_scores, exit_event_dict):
     """This function computes and stores the score of the exit event on a non-leaf node 'u' of the gene tree."""
 
-    for e1 in exit_event_list[u]:
+    # Hear we must iterate over every pair of events
+    for e1 in exit_event_dict[u]:
         child1 = e1[1][0]
         child2 = e1[2][0]
         # B and C are the species nodes of the two mapping nodes of e1
         B = e1[1][1]
         C = e1[2][1]
         exit_event_scores[u][e1] = {}
-        for e2 in exit_event_list[u]:
+        for e2 in exit_event_dict[u]:
             # E and F are the species nodes of the two mapping nodes of e2
             # We need to account for the case that the children of u are in opposite order between the two events
             if child1 == e2[1][0]:
