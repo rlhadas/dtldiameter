@@ -419,7 +419,7 @@ def preorderDTLsort(DTL, ParasiteRoot):
         for mapping in keysL:
             if mapping[-1] == levelCounter:
                     toAdd += [mapping]
-        orderedKeysL = orderedKeysL + toAdd
+        orderedKeysL += toAdd
         levelCounter += 1
     lastLevel = orderedKeysL[-1][1]
     return orderedKeysL
@@ -448,7 +448,7 @@ def preorderCheck(preOrderList):
     # Filtering for multiple instances of a with different b by keeping biggest 
     # b instance. This is safe: ensures that all possible parents of a node will 
     # be handled before a node to prevent considering duplicates in the
-    # addScores function. 
+    # addScores function.
     # Correction by Jean Sung, July 2016
     finalList = []
     for item in newList:
@@ -484,7 +484,7 @@ def addScores(treeMin, DTLDict, ScoreDict):
                 parentsDict[vertex] = ScoreDict[vertex]
 
             # LAST is garbage  value used in the dp construction   
-            for n in range(len(DTLDict[vertex])-1):
+            for n in range(len(DTLDict[vertex]) - 1):
                 _, child1, child2, oldScore = DTLDict[vertex][n]
 
                 newDTL[vertex][n][3] = parentsDict[vertex] * \
@@ -500,13 +500,12 @@ def addScores(treeMin, DTLDict, ScoreDict):
                         parentsDict[child2] += newDTL[vertex][n][3]
                     else: 
                         parentsDict[child2] = newDTL[vertex][n][3]
-
      
     normalize = newDTL[preOrder2[-1][0]][0][-1]  # preOrder2[-1][0] is the last value considered in the above loop
 
-
     # Adjust all values in the DTL
     for key in newDTL:
+
         # Again, last value is garbage 
         for event in newDTL[key][:-1]:
             event[-1] = event[-1]/normalize
@@ -532,7 +531,7 @@ def LRU(maxsize=None):
         # really uses 'roots' and 'start'
         def use_memoizer(start, roots, eventGraph):
 
-            # If we're running a brand new call, clear the cache so new results aren't detected from previous calls
+            # If we're running a brand new call, clear the cache so old results aren't detected from previous calls
             if start:
                 del mem_cache[:]
 
@@ -569,13 +568,13 @@ def LRU(maxsize=None):
             # Save it into the cache
             mem_cache.insert(0, (roots, result))
 
-            # Now return the value, whether it was calculated or taken from the cache
+            # Now return the value, which was either calculated or taken from the cache
             return result
 
-        # Return the function
+        # Return the internal function that implements the memoizer
         return use_memoizer
 
-    # Return the memoizer
+    # Return the memoizer, which will replace the function that the decorator is used on
     return memoizer
 
 
@@ -648,7 +647,7 @@ def buildEventGraph(tupleList, eventDict, uniqueDict):
     """Takes as input tupleList, a list of minimum reconciliation cost roots,
      eventDict, the dictionary of events and children for each node, and 
      uniqueDict, the dictionary of unique vertex mappings. This returns the 
-     completed DTL graph as a Dictionary"""
+     completed DTL graph as a dictionary"""
     for vertexPair in tupleList:
         if vertexPair not in uniqueDict:
             uniqueDict[vertexPair] = eventDict[vertexPair]
@@ -666,5 +665,5 @@ def reconcile(fileName, D, T, L):
     return the DTL reconciliation graph of the provided newick file"""
     # Note: I have made modifications to the return statement to make Diameter.py possible without re-reconciling.
     host, paras, phi = newickFormatReader.getInput(fileName)
-    numRecon, graph = DP(host, paras, phi, D, T, L)
+    graph, _, numRecon = DP(host, paras, phi, D, T, L)
     return host, paras, graph, numRecon
