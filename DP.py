@@ -3,17 +3,24 @@
 # The basic DP algorithm for reconciling pairs of trees
 
 # Altered and expanded by Carter Slocum and Annalise Schweickart
-
+# Altered and expanded by Andrew Ramirez and Eli Zupke
 
 # A tree is represented as a dictionary of key-value pairs where a key is an
 # edge name and the value is a tuple of the form
 # (start vertex, end vertex, left child edge name, right child edge name)
 # An edge name may be None.  The "dummy" edge leading to the root of the
 # parasite tree, denoted e^P in the technical report, must be named "pTop".
+# TODO: describe the structure of the DTL reconciliation graph, i.e. dictionary with keys representing...
+# TODO: ensure trees called trees where necessary and DTL graphs called DTL recon graphs where necessary
+# TODO: place all "housekeeping" functions in this file so the necessary files are self-contained
+
+# TODO: use IDE's special format for docstrings (e.g. params, return, etc.)
+
 # Edited by Annalise Schweickart and Carter Slocum, July 2015 to return
 # the DTL reconciliation graph that uses frequency scoring, as well as the
-# number of reconciliations of the host and parasite trees. Edited by Andrew
-# Ramirez in late June 2017 to return the number of MPRs for a given data set
+# number of reconciliations of the host and parasite trees.
+
+# Edited by Andrew Ramirez in late June 2017 to return the number of MPRs for a given data set
 # with a time efficiency improved by about a factor of 2 relative to previous
 # methods for returning the number of MPRs.
 
@@ -59,12 +66,13 @@ def postorder(tree, rootEdgeName):
 def DP(hostTree, parasiteTree, phi, D, T, L):
     """ Takes a hostTree, parasiteTree, tip mapping function phi, and
         duplication cost (D), transfer cost (T), and loss cost (L) and
-        returns the DTL graph in the form of a dictionary, as well as the
+        returns the DTL reconciliation graph in the form of a dictionary, as well as the
         total cost of the optimal Maximum Parsimony Reconciliation and
         the number of maximum parsimony reconciliations. The notation and 
         dynamic programming algorithm are explained in the tech report.
         Cospeciation is assumed to cost 0. """
 
+    # TODO: for every dictionary, describe what the keys and their corresponding values represent, as well as the types and formats
     # A, C, O, and bestSwitch are all defined in tech report
     A = {}
     C = {}
@@ -72,10 +80,14 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
     bestSwitch = {}
 
     eventsDict = {}  # Dictionary to keep track of events, children, and scores
-    Minimums = {}  # Dictionary to keep track of minimum reconciliation costs
+
+    # TODO: rename Minimums minCost
+    Minimums = {}  # Dictionary to keep track of minimum reconciliation cost for each (vp, vh)
     oBest = {}  # Dictionary to keep track of the lowest costing events in O
     bestSwitchLocations = {}  # Dictionary to keep track of switch locations
     Score = {}  # Dictionary to calculate the frequency scoring of each event
+    # TODO: re-add functions using Score and add option to use it or not
+    # TODO: note in the docstring that frequency ('Score') is included in the return value and describe it
 
     # Following logic taken from tech report, we loop over all ep and eh
     for ep in postorder(parasiteTree, "pTop"):
@@ -209,6 +221,7 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                 SWITCHepeh = T + min(C[(ep1, eh)] + bestSwitch[(ep2, eh)],
                                      C[(ep2, eh)] + bestSwitch[(ep1, eh)])
 
+                # TODO: look into omitting if/elif/else in favor of two if's with leq's instead of < and >
                 # If ep2 switching has the lowest cost
                 if (C[(ep1, eh)] + bestSwitch[(ep2, eh)]) < (C[(ep2, eh)] +
                                                              bestSwitch[(ep1, eh)]):
@@ -286,6 +299,7 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
             # Add the minimum costs for the current edges to the Minimums dict
             Minimums[(vp, vh)] = C[(ep, eh)]
 
+            # TODO: replace all of the min(...) statements with C[(ep, eh)] since they're the same anyhow
             # Find which events produce a minimum and add them to the event dict
             if min(A[(ep, eh)], DUPepeh, SWITCHepeh) == DUPepeh:
                 eventsDict[(vp, vh)].append(dupList)
@@ -329,10 +343,13 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                 O[(ep, eh)] = min(C[(ep, eh)], O[(ep, eh1)], O[(ep, eh2)])
 
                 # Finds the minimum switch locations for O
+                # TODO: comment what oMin and oBest do, more detailed description
                 oMin = [i for i, e in enumerate([C[(ep, eh)], O[(ep, eh1)], O[(ep, eh2)]])
                         if e == O[(ep, eh)]]
-                if 0 in oMin:
+                if 0 in oMin:  # Corresponds to C
                     oBest[(vp, vh)].append((vp, vh))
+                # TODO finish comment
+                # Corresponds to O for both of the children
                 if 1 in oMin:
                     oBest[(vp, vh)].extend(oBest[(vp, hChild1)])
                 if 2 in oMin:
@@ -388,18 +405,20 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                     bestSwitchLocations[(vp, hChild2)].extend(
                         oBest[(vp, hChild1)])
 
-    # Add the costs of each event to the corresponding eventsDict entry
+    # Append the cost of each event to the corresponding eventsDict entry
     for key in eventsDict:
         eventsDict[key].append(Minimums[key])
 
     # Use buildEventGraph and findBestRoots to construct the DTL graph dictionary
-    treeMin = findBestRoots(parasiteTree, Minimums)
-    DTL = buildEventGraph(treeMin, eventsDict, {})
+    # TODO: finish commenting this section
+    treeMin = findBestRoots(parasiteTree, Minimums)  # Construct list of min cost mapping nodes involving root of gene tree
+    DTL = buildEventGraph(treeMin, eventsDict, {})  # TODO: rename DTLReconGraph
 
     # The total cost of the best reconciliation
     bestCost = Minimums[treeMin[0]]
 
     # The total number of MPRs for this optimal cost
+    # TODO: use new countMPRs method
     nMPRs = countMPRs(True, treeMin, DTL)
 
     # Returns the graph, the optimal cost, and the number of MPRs
@@ -426,6 +445,14 @@ def preorderDTLsort(DTL, ParasiteRoot):
 
 def preorderCheck(preOrderList):
     """This takes a list from preorderDTLsort and removes the duplicate tuples"""
+
+    # newList = [(a1, a2), b] where a is the map node and b is the depth level
+    # Filtering for multiple instances of a with different b by keeping biggest
+    # b instance. This is safe: ensures that all possible parents of a node will
+    # be handled before a node to prevent considering duplicates in the
+    # addScores function.
+    # Correction by Jean Sung, July 2016
+
     newList = []
     preDict = {}
     for root in preOrderList:
@@ -443,12 +470,6 @@ def preorderCheck(preOrderList):
         else:
             preDict[currentRoot] = (currentLevel, x)
 
-    # newList = [(a1, a2), b] where a is the map node and b is the depth level
-    # Filtering for multiple instances of a with different b by keeping biggest 
-    # b instance. This is safe: ensures that all possible parents of a node will 
-    # be handled before a node to prevent considering duplicates in the
-    # addScores function.
-    # Correction by Jean Sung, July 2016
     finalList = []
     for item in newList:
         node = item[0]
@@ -579,9 +600,10 @@ def LRU(maxsize=None):
 
 # Utilize the previously defined decorator
 @LRU()
-def countMPRs(start, roots, eventGraph):
+def countMPRs(start, roots, eventGraph):  # Don't forget rename DTLReconGraph
     """Takes a boolean value indicating whether the loop is just starting,
-    minimum cost roots in a list, and an event graph (output from buildEventGraph).
+    minimum cost roots in a DTL reconciliation graph (output from findBestRoots)
+     in a list, and an event graph (output from buildEventGraph).
     Each root should be represented as a tuple (e.g.('a', 'A')).
     This function recursively (with memoization) essentially
     finds the number of unique 'paths' through the solution
@@ -626,7 +648,39 @@ def countMPRs(start, roots, eventGraph):
 
     return count
 
+def countMPRsWrapper(mappingNodeLst, DTLReconGraph):
 
+    memo = dict()
+
+    count = 0
+
+    for mappingNode in mappingNodeLst:
+        count += countMPRs2(mappingNode, DTLReconGraph, memo)
+
+    return count
+
+def countMPRs2(mappingNode, DTLReconGraph, memo):
+
+    if mappingNode in memo:
+        return memo[mappingNode]
+
+    if mappingNode == (None, None):
+        return 1
+
+    count = 0
+
+    for eventNode in DTLReconGraph[mappingNode][:-1]:
+        mappingChild1 = eventNode[1]
+        mappingChild2 = eventNode[2]
+
+        count += countMPRs2(mappingChild1, DTLReconGraph, memo) * countMPRs2(mappingChild2, DTLReconGraph, memo)
+
+    memo[mappingNode] = count
+
+    return count
+
+
+ # TODO: if Parasite is a tree, incorporate that info into the var name
 def findBestRoots(Parasite, MinimumDict):
     """Takes Parasite Tree and a dictionary of minimum reconciliation costs
     and returns a list of the minimum cost reconciliation tree roots"""
@@ -642,11 +696,16 @@ def findBestRoots(Parasite, MinimumDict):
     return treeMin
 
 
+# TODO: Rename buildDTLReconGraph, reformat docstring
 def buildEventGraph(tupleList, eventDict, uniqueDict):
-    """Takes as input tupleList, a list of minimum reconciliation cost roots,
+    """Takes as input: tupleList, a list of minimum reconciliation cost roots,
      eventDict, the dictionary of events and children for each node, and 
      uniqueDict, the dictionary of unique vertex mappings. This returns the 
-     completed DTL graph as a dictionary"""
+     completed DTL graph as a dictionary
+     :param tupleList:
+     :param eventDict:
+     :param uniqueDict:
+     :return: """
     for vertexPair in tupleList:
         if vertexPair not in uniqueDict:
             uniqueDict[vertexPair] = eventDict[vertexPair]
