@@ -35,7 +35,7 @@ def findExtrema(csv_file):
     with open(csv_file) as file:
         reader = csv.reader(file)
         for row in reader:
-            if row[0] != "File Name": #and row[2] != "0":
+            if len(row) > 0 and row[0] != "File Name": #and row[2] != "0":
                 number += 1
                 number_list += [number]
                 mpr = float(row[1])
@@ -114,6 +114,7 @@ def findExtrema(csv_file):
     diameter_time.grid()
     diameter_time.set_ylim(0.01, (10**5))
     diameter_time.set_yscale('log')
+    diameter_time.set_xscale('log')
     DP_time.scatter(gene_count_list, DP_timings, c=diameter_over_gene_list)
     DP_time.set_xlabel("Gene Node Count")
     DP_time.set_ylabel("DP Time (seconds)")
@@ -128,6 +129,7 @@ def findExtrema(csv_file):
     total_time.grid()
     total_time.set_ylim(0.01, (10**5))
     total_time.set_yscale('log')
+    total_time.set_xscale('log')
 
     plt.show()
 
