@@ -8,7 +8,11 @@
 #   algorithm more thoroughly than can be expressed in source code comments. The paper title is "Computing the Diameter
 #   of the Space of Maximum Parsimony Reconciliations in the Duplication-Transfer-Loss Model". #TODO add more info
 #
-#   Note that in this documentation and in that paper, there is a notion of the "group" of a node
+#       Note that in this documentation and in that paper, there is a notion of the "group" of a gene node that contains
+#   every mapping and event node relating to that gene. While this is a useful abstraction to think about the problem,
+#   it doesn't seem to be required in the code. So when the documentation of this program refers to the "group" of a
+#   node, sometimes notated as Group(u), be aware that it does not directly correspond to any data structure in the
+#   program.
 
 # 1. ON TREE REPRESENTATION FORMATS:
 #
@@ -76,12 +80,12 @@
 #       There are several helper dictionaries which pertain to exit events. Their names should be pretty self
 #   explanatory, but they are described more fully here.
 #
-#   exit_events_by_mapping, is keyed by mapping node, and every entry corresponds to a list containing every exit event
-# that is a child of that mapping node
-#   exit_events_by_gene, is keyed by gene node, and where entry corresponds to a list containing every exit event in
-# the group of that gene node
-#   exit_mappings_by_gene, is keyed by gene node, and where  entry corresponds to a list containing every mapping node
-# in group of that gene node, on the condition that that mapping node has an exit event
+#       exit_events_by_mapping is keyed by mapping node. Each entry contains a list of every exit event
+#   that is a child of that mapping node
+#       exit_events_by_gene is keyed by gene node. Each entry contains a list of every exit event in
+#   the group of that gene node
+#       exit_mappings_by_gene is keyed by gene node. Each entry contains a list of every mapping node
+#   in group of that gene node, on the condition that that mapping node has an exit event
 
 # -1. DATA STRUCTURE QUICK REFERENCE:
 #
@@ -96,12 +100,12 @@
 #   Event node:
 #       ('type', child_mapping_node1, child_mapping_node2, number)
 #
-#   (edge) tree:
+#   (edge) trees:
 #       {('R','N'): ('R','N', ('N','C1'), ('N','C2')) ...}
 #       aka:
 #       {root_edge: (root_edge[0], root_edge[1], child1_edge, child2_edge) ...}
 #
-#   vertex_tree:
+#   vertex_trees:
 #       {'N':('C1','C2') ...}
 #
 #   path:
@@ -319,8 +323,9 @@ def compute_exit_event_table(u, exit_event_table, enter_mapping_table, exit_even
     """This function computes and stores the score of the exit event on a non-leaf node 'u' of the gene tree.
     :param u:                       The gene node for which we want to compute the table.
     :param exit_event_table:        The dp table we will compute
-    :param enter_mapping_table:     A dp table that we will use
-    :param exit_events_by_gene:
+    :param enter_mapping_table:     A dp table that we will use to make exit_event_table
+    :param exit_events_by_gene:     The exit_events_by_gene dict, which we use to iterate over u's exit events
+    :return:                        Nothing, but it modifies exit_event_table.
     """
 
     # Initialize u's exit_event_table entry
@@ -355,22 +360,20 @@ def compute_exit_event_table(u, exit_event_table, enter_mapping_table, exit_even
 
 def compute_exit_mapping_table(u, exit_mapping_table, exit_event_table, exit_mappings_by_gene, exit_events_by_mapping):
     """This function computes and stores the maximum possible score of the exit from gene node u
-    :param u:
-    :param exit_mapping_table:
-    :param exit_event_table:
-    :param exit_mappings_by_gene:
-    :param exit_events_by_mapping:
-    """
-
-    # u_mapping_nodes contains all nodes in Group(u) that have exit events
-    u_mapping_nodes = exit_mappings_by_gene[u]
+    :param u:                       The gene node to build compute_exit_mapping_table for
+    :param exit_mapping_table:      A reference to the dp table that we are building
+    :param exit_event_table:        The exit event dp table, which we use to compute the exit_mapping_table
+    :param exit_mappings_by_gene:   The exit_mappings_by_gene dict, which we use to iterate over u's exit mapping nodes
+    :param exit_events_by_mapping:  The exit_events_by_mapping dict, which we use to iterate the events in said mapping
+                                    nodes
+    :return:                        Nothing, but it modifies exit_mapping_table."""
 
     # Initialize u's exit_mapping_table entry
     exit_mapping_table[u] = {}
 
-    for uA in u_mapping_nodes:
+    for uA in exit_mappings_by_gene[u]:
         exit_mapping_table[u][uA] = {}
-        for uB in u_mapping_nodes:
+        for uB in exit_mappings_by_gene[u]:
             max_value = 0
             for E1 in exit_events_by_mapping[uA]:
                 for E2 in exit_events_by_mapping[uB]:
@@ -378,54 +381,49 @@ def compute_exit_mapping_table(u, exit_mapping_table, exit_event_table, exit_map
             exit_mapping_table[u][uA][uB] = max_value
 
 
-def build_loss_reachable(graph, root_mapping_node):
-    """A recursive function to create the list of the mapping nodes that can be reached through loss events.
-    (The base case is when you can't get to a loss node from a mapping node)
-    :param graph:
-    :param root_mapping_node:
-    :return: """
+def build_loss_reachable(dtl_recon_graph, root_mapping_node):
+    """A recursive function to create the list of the mapping nodes that can be reached through loss events from a
+    mapping node. (The base case is when the root_mapping_node has no loss children)
+    :param dtl_recon_graph:     The DTL reconciliation graph
+    :param root_mapping_node:   The mapping node that we are searching from
+    :return:                    A list of mapping nodes that we can reach from here"""
+
+    # Grab all loss events
+    loss_events = filter(lambda e: e[0] == 'L', dtl_recon_graph[root_mapping_node])
+    # For explanation of the above event structure, see section -1.
+
     loss_reachable = []
-
-    loss_events = filter(lambda e: e[0] == 'L', graph[root_mapping_node])  # Grab all loss events
-    # For explanation of this, see the data structure quick reference.
-
     for event in loss_events:
-        loss_reachable += build_loss_reachable(graph, event[1])
+        loss_reachable += build_loss_reachable(dtl_recon_graph, event[1])
     return loss_reachable + [root_mapping_node]
 
 
-def compute_enter_mapping_table(u, enter_mapping_table, exit_mapping_table, mapping_node_list, graph, ssd):
+def compute_enter_mapping_table(u, enter_mapping_table, exit_mapping_table, mapping_node_list, dtl_recon_graph, ssd):
     """This function computes the maximum possible score of each pair of mapping nodes for gene node u, and stores each
     one into the enter_mapping_table table for u.
-    :param u:
-    :param enter_mapping_table:
-    :param exit_mapping_table:
-    :param mapping_node_list:
-    :param graph:
-    :param ssd: """
+    :param u:                   The gene node to compute the enter_mapping_table for
+    :param enter_mapping_table: The dp that we will compute
+    :param exit_mapping_table:  The exit mapping dp table, which we will use to compute the enter_mapping_table
+    :param mapping_node_list:   The list of all mapping nodes in the DTL graph, which we need to iterate over
+    :param dtl_recon_graph:     The DTL reconciliation graph
+    :param ssd:                 The symmetric set difference table we pre-computed
+    :return:                    Nothing, but it modifies enter_mapping_table"""
 
-    # TODO: look over this, this is group u, think of removing from fucntion
-    u_mapping_nodes = []  # Make a new list that has only the mapping nodes that contain u
-    for node in mapping_node_list:
-        if node[0] == u:
-            u_mapping_nodes.append(node)
+    # I lied in section 0 of the header, u_mapping_nodes is basically group(u). However, it is local to this function,
+    # and contains only mapping nodes.
+    u_mapping_nodes = filter(lambda n: n[0] == u, mapping_node_list)
 
-    loss_reachable = {}  # Every mapping node (in u)'s list of mapping nodes that can be reached through loss events
+    # Every mapping node (in u)'s list of mapping nodes that can be reached through loss events
+    loss_reachable = {}
 
     for mapping_node in u_mapping_nodes:
-        loss_reachable[mapping_node] = build_loss_reachable(graph, mapping_node)
+        loss_reachable[mapping_node] = build_loss_reachable(dtl_recon_graph, mapping_node)
 
     enter_mapping_table[u] = {}
     for uA in u_mapping_nodes:
         enter_mapping_table[u][uA] = {}
         for uB in u_mapping_nodes:
             max_score = 0
-
-            # temp_debug_scores = {}  # this table displays the values considered for max_score
-            # for map1 in frozenset(loss_reachable[uA] + loss_reachable[uB]):
-            #    temp_debug_scores[map1] = {}
-            #    for map2 in frozenset(loss_reachable[uA] + loss_reachable[uB]):
-            #        temp_debug_scores[map1][map2] = "N/A"
 
             for uC in loss_reachable[uA]:
                 #  Sometimes, we consider values for uC and uD that do not have entries in exit_mapping_table[u].
@@ -437,12 +435,12 @@ def compute_enter_mapping_table(u, enter_mapping_table, exit_mapping_table, mapp
 
                     if not uD in exit_mapping_table[u][uC]:
                         break
+                    # Find out how many losses these path pairs have, and score appropriately
                     score_loss = ssd[(uA[1], uC[1])][(uB[1], uD[1])]
+                    # Find out the rest of scores from exit_mapping_table for these paths
                     score_rest = exit_mapping_table[u][uC][uD]
-                    # temp_debug_scores[uC][uD] = score_rest + score_loss
+                    # See if this score is better than our previous best
                     max_score = max(max_score, (score_loss + score_rest))
-
-            # print_table_nicely(temp_debug_scores,"","{4}:tmp {0}{1}:{2}{3}".format(uA[0], uA[1], uB[0], uB[1],u))
 
             enter_mapping_table[u][uA][uB] = max_score
 
@@ -454,11 +452,13 @@ def event_to_string(event):
 
 def print_table_nicely(table, deliminator, name="\t", type="map"):
     """Takes a table (a 2D dict keyed with tuples) and prints a nicely formatted table. Used for debugging and wall art.
-    :param table:
-    :param deliminator:
-    :param name:
-    :param type:
-    :return:
+    :param table:       The table we wish to print nicely. It is assumed that the rows and columns are exactly the same,
+                        and that both the keys and values will fit within 7 characters (room for one tab space)
+                        It is also assumed that the keys are tuples of some kind.
+    :param deliminator: What string to put in between the elements of the tuples
+    :param name:        What this table should be named (upper left)
+    :param type:        A string corresponding to the type of data. Valid values are 'event', 'path', and 'map'.
+    :return:            Nothing, but prints to the screen a lot.
     """
 
     print ""
@@ -503,8 +503,9 @@ def print_table_nicely(table, deliminator, name="\t", type="map"):
 def clean_graph(dtl_recon_graph, gene_tree_root):
     """Cleans up the graph created by DP.py by turning removing scores from events and event lists, and removes any
      loss events on the root gene node.
-     :param dtl_recon_graph:
-     :param gene_tree_root: """
+     :param dtl_recon_graph:    The DTL reconciliation graph that we wish to clean
+     :param gene_tree_root:     The root of the gene tree of said graph
+     :return:                   Nothing, but modifies dtl_recon_graph"""
     for key in dtl_recon_graph:
         # Get rid of all of the random numbers in the event list
         dtl_recon_graph[key] = filter(lambda e: not isinstance(e, (float, int)), dtl_recon_graph[key])
@@ -523,15 +524,13 @@ def diameter_algorithm(species_tree, vertex_gene_tree, gene_tree_root, dtl_recon
     """This function is the one that actually computes the diameter. It initializes many dictionaries, computes the
     symmetric set difference between every pair of paths on the species tree, and then runs the algorithm as described
     in Jordan's paper.
-    :param species_tree:
-    :param vertex_gene_tree:
-    :param gene_tree_root:
-    :param dtl_recon_graph:
-    :param debug:
-    :param zero_loss:
-    :return: """
-
-    # TODO: Fill this in (all functions)
+    :param species_tree:        The (edge-based) tree containing the species data.
+    :param vertex_gene_tree:    The vertex-based gene tree that we will be iterating over.
+    :param gene_tree_root:      The root of said gene tree
+    :param dtl_recon_graph:     The DTL reconciliation graph to find the diameter of, as returned by DP.py
+    :param debug:               Whether we should print a bunch of nice tables
+    :param zero_loss:           Whether we shouldn't count loss events in the diameter
+    :return:                    The diameter of the given DTL reconciliation graph."""
 
     # We need to get path_edges, a dict containing all of the edges for each path
     #   and non_trivial_path_list, a subset of path_list with all paths A->A removed.
@@ -624,7 +623,7 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=Fa
       :param L:             The cost for loss events
       :param csv_file:      The csv file to output results to (will create it if it does not exist)
       :param debug:         Whether to print out all of the tables
-      :return: Nothing"""
+      :return:              Nothing, but we output results to a csv file."""
 
     # These statements check to make sure that all arguments were entered correctly.
     assert isinstance(csv_file, (str, unicode))
@@ -682,7 +681,7 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=Fa
     # And we're done.
     return
 
-# -2. COMMAND LINE FUNCTIONS
+# -2. COMMAND LINE FUNCTIONS ###################
 
 def rep_calc():
     """Command line function to repeatedly run through numbered files located at TreeLifeData/COG####.newick"""
