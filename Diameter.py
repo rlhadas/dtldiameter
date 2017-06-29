@@ -37,9 +37,7 @@
 
 # TODO: Explain path format
 
-
-
-import DP
+import DTLReconGraph
 import time
 import csv
 import os.path
@@ -568,7 +566,7 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=Fa
     start_time = time.clock()
 
     # Get everything we need from DP
-    edge_species_tree, edge_gene_tree, graph, mpr_count = DP.reconcile(filename, D, T, L)
+    edge_species_tree, edge_gene_tree, graph, mpr_count = DTLReconGraph.reconcile(filename, D, T, L)
 
     # And record the amount of time DP took
     DP_time_taken = time.clock() - start_time
