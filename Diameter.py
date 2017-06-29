@@ -17,7 +17,7 @@
 # 1. ON TREE REPRESENTATION FORMATS:
 #
 #       This file deals with trees in two formats: Edge-based formats, and vertex-based formats. The edged-based
-#   trees are what are output from DP.py (which returns them straight from newickFormatReader), and are what this
+#   trees are what are output from DTLReconGraph.py (which returns them straight from newickFormatReader), and are what this
 #   file uses to represent the species tree. For readability and convenience purposes, the gene tree is converted to
 #   a vertex tree in the reformat_tree() method.
 #
@@ -37,11 +37,11 @@
 
 # 2. ON THE NAMING CONVENTION OF THE TWO TREES:
 #
-#       This file calls the two trees the gene tree and the species tree. Other programs, like DP.py, have different
+#       This file calls the two trees the gene tree and the species tree. Other programs, like DTLReconGraph.py, have different
 #   naming conventions (such as "host" for the species tree and "parasite" for the gene tree) because they were coded
 #   under different assumptions as to what the two trees represent. Let it be understood that these names are
 #   synonymous, and that references to "hTop" or "pTop" refer to the name of the handle of the species and
-#   gene trees that DP outputs.
+#   gene trees that DTLReconGraph outputs.
 
 
 # 3. ON THE USAGE OF PATHS AND THE PATH REPRESENTATION FORMAT:
@@ -313,7 +313,7 @@ def compute_trivial_exit_event_table(u, exit_event_table):
     """This function computes and stores the score of the exit event on a leaf node 'u' of the gene tree.
     As this event will always be a C event that is shared by all nodes, this value will always be 0.
     :param u:                   The gene node for which we want to compute the table.
-    :param exit_event_table:    The dp table we will compute """
+    :param exit_event_table:    The DTLReconGraph table we will compute """
     exit_event_table[u] = {}
     exit_event_table[u][('C', (None, None), (None, None))] = {}
     exit_event_table[u][('C', (None, None), (None, None))][('C', (None, None), (None, None))] = 0
@@ -322,8 +322,8 @@ def compute_trivial_exit_event_table(u, exit_event_table):
 def compute_exit_event_table(u, exit_event_table, enter_mapping_table, exit_events_by_gene):
     """This function computes and stores the score of the exit event on a non-leaf node 'u' of the gene tree.
     :param u:                       The gene node for which we want to compute the table.
-    :param exit_event_table:        The dp table we will compute
-    :param enter_mapping_table:     A dp table that we will use to make exit_event_table
+    :param exit_event_table:        The DTLReconGraph table we will compute
+    :param enter_mapping_table:     A DTLReconGraph table that we will use to make exit_event_table
     :param exit_events_by_gene:     The exit_events_by_gene dict, which we use to iterate over u's exit events
     :return:                        Nothing, but it modifies exit_event_table.
     """
@@ -361,8 +361,8 @@ def compute_exit_event_table(u, exit_event_table, enter_mapping_table, exit_even
 def compute_exit_mapping_table(u, exit_mapping_table, exit_event_table, exit_mappings_by_gene, exit_events_by_mapping):
     """This function computes and stores the maximum possible score of the exit from gene node u
     :param u:                       The gene node to build compute_exit_mapping_table for
-    :param exit_mapping_table:      A reference to the dp table that we are building
-    :param exit_event_table:        The exit event dp table, which we use to compute the exit_mapping_table
+    :param exit_mapping_table:      A reference to the DTLReconGraph table that we are building
+    :param exit_event_table:        The exit event DTLReconGraph table, which we use to compute the exit_mapping_table
     :param exit_mappings_by_gene:   The exit_mappings_by_gene dict, which we use to iterate over u's exit mapping nodes
     :param exit_events_by_mapping:  The exit_events_by_mapping dict, which we use to iterate the events in said mapping
                                     nodes
@@ -402,8 +402,8 @@ def compute_enter_mapping_table(u, enter_mapping_table, exit_mapping_table, mapp
     """This function computes the maximum possible score of each pair of mapping nodes for gene node u, and stores each
     one into the enter_mapping_table table for u.
     :param u:                   The gene node to compute the enter_mapping_table for
-    :param enter_mapping_table: The dp that we will compute
-    :param exit_mapping_table:  The exit mapping dp table, which we will use to compute the enter_mapping_table
+    :param enter_mapping_table: The DTLReconGraph that we will compute
+    :param exit_mapping_table:  The exit mapping DTLReconGraph table, which we will use to compute the enter_mapping_table
     :param mapping_node_list:   The list of all mapping nodes in the DTL graph, which we need to iterate over
     :param dtl_recon_graph:     The DTL reconciliation graph
     :param ssd:                 The symmetric set difference table we pre-computed
@@ -501,7 +501,7 @@ def print_table_nicely(table, deliminator, name="\t", type="map"):
 
 
 def clean_graph(dtl_recon_graph, gene_tree_root):
-    """Cleans up the graph created by DP.py by turning removing scores from events and event lists, and removes any
+    """Cleans up the graph created by DTLReconGraph.py by turning removing scores from events and event lists, and removes any
      loss events on the root gene node.
      :param dtl_recon_graph:    The DTL reconciliation graph that we wish to clean
      :param gene_tree_root:     The root of the gene tree of said graph
@@ -514,7 +514,7 @@ def clean_graph(dtl_recon_graph, gene_tree_root):
             # Get rid of the last value, as it is a number we don't need
             dtl_recon_graph[key][i] = dtl_recon_graph[key][i][:-1]
 
-        # DP should be filtering the loss events on the root node out, so we don't need to worry about it
+        # DTLReconGraph should be filtering the loss events on the root node out, so we don't need to worry about it
         # if key[0] == gene_tree_root:
             # dtl_recon_graph[key] = filter(lambda e: not e[0] == 'L', dtl_recon_graph[key])
 
@@ -527,7 +527,7 @@ def diameter_algorithm(species_tree, vertex_gene_tree, gene_tree_root, dtl_recon
     :param species_tree:        The (edge-based) tree containing the species data.
     :param vertex_gene_tree:    The vertex-based gene tree that we will be iterating over.
     :param gene_tree_root:      The root of said gene tree
-    :param dtl_recon_graph:     The DTL reconciliation graph to find the diameter of, as returned by DP.py
+    :param dtl_recon_graph:     The DTL reconciliation graph to find the diameter of, as returned by DTLReconGraph.py
     :param debug:               Whether we should print a bunch of nice tables
     :param zero_loss:           Whether we shouldn't count loss events in the diameter
     :return:                    The diameter of the given DTL reconciliation graph."""
@@ -597,7 +597,7 @@ def diameter_algorithm(species_tree, vertex_gene_tree, gene_tree_root, dtl_recon
 
 
 def write_to_csv(csv_file, costs, filename, mpr_count, diameter, gene_node_count,
-                 DP_time_taken, diameter_time_taken):
+                 DTLReconGraph_time_taken, diameter_time_taken):
     file_exists = os.path.isfile(csv_file)
 
     with open(csv_file, 'a') as output_file:
@@ -606,10 +606,10 @@ def write_to_csv(csv_file, costs, filename, mpr_count, diameter, gene_node_count
         # Write the headers if we need to.
         if not file_exists:
             writer.writerow(["File Name", "Costs", "MPR Count", "Diameter", "Gene Node Count",
-                             "DP Computation Time", "Diameter Computation Time", "Date"])
+                             "DTLReconGraph Computation Time", "Diameter Computation Time", "Date"])
 
         writer.writerow([filename, costs, mpr_count, diameter, gene_node_count,
-                         DP_time_taken, diameter_time_taken, time.strftime("%c")])
+                         DTLReconGraph_time_taken, diameter_time_taken, time.strftime("%c")])
 
 
 def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=False):
@@ -633,16 +633,16 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=Fa
     assert isinstance(L, int)
     assert isinstance(debug, bool)
 
-    # Record the time that DP starts
+    # Record the time that DTLReconGraph starts
     start_time = time.clock()
 
-    # Get everything we need from DP
+    # Get everything we need from DTLReconGraph
     species_tree, gene_tree, dtl_recon_graph, mpr_count = DTLReconGraph.reconcile(filename, D, T, L)
 
-    # And record the amount of time DP took
-    DP_time_taken = time.clock() - start_time
+    # And record the amount of time DTLReconGraph took
+    DTLReconGraph_time_taken = time.clock() - start_time
 
-    print "Reconciliation Complete in \033[33m\033[1m{0} seconds\033[0m".format(DP_time_taken)
+    print "Reconciliation Complete in \033[33m\033[1m{0} seconds\033[0m".format(DTLReconGraph_time_taken)
 
     # Record the time that this code starts
     start_time = time.clock()
@@ -651,7 +651,7 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=Fa
     # (This also puts the gene_tree into postorder, as an ordered dict)
     gene_tree, gene_tree_root, gene_node_count = reformat_tree(gene_tree, "pTop")
 
-    # The DTL reconciliation graph as provided by DP has some extraneous numbers. We remove those here.
+    # The DTL reconciliation graph as provided by DTLReconGraph has some extraneous numbers. We remove those here.
     clean_graph(dtl_recon_graph, gene_tree_root)
 
     # Now we draw the rest of the owl
@@ -671,12 +671,12 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=Fa
     # debug mode.
     if not debug:
         print "Diameter found in \033[33m\033[1m{0} seconds\033[0m".format(diameter_time_taken)
-        print "Total time: \033[33m\033[1m{0} seconds\033[0m".format(diameter_time_taken + DP_time_taken)
+        print "Total time: \033[33m\033[1m{0} seconds\033[0m".format(diameter_time_taken + DTLReconGraph_time_taken)
 
     # Now, we write our results to a csv file.
     costs = "D: {0} T: {1} L: {2}".format(D, T, L)
-    write_to_csv(csv_file + ".csv",costs,filename,mpr_count,diameter,gene_node_count,DP_time_taken,diameter_time_taken)
-    write_to_csv(csv_file + "_zl.csv", costs, filename, mpr_count, zl_diameter, gene_node_count, DP_time_taken,
+    write_to_csv(csv_file + ".csv",costs,filename,mpr_count,diameter,gene_node_count,DTLReconGraph_time_taken,diameter_time_taken)
+    write_to_csv(csv_file + "_zl.csv", costs, filename, mpr_count, zl_diameter, gene_node_count, DTLReconGraph_time_taken,
                  zl_diameter_time_taken)
     # And we're done.
     return
