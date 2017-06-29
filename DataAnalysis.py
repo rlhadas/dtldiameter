@@ -1,6 +1,7 @@
 import csv
 import numpy
 import matplotlib.pyplot as plt
+import os
 
 def displayListValues(list, name):
     print name + ": "
@@ -31,18 +32,17 @@ def findExtrema(csv_file):
     total_timings = []
     number_list = []
     number = 0
-
     with open(csv_file) as file:
         reader = csv.reader(file)
         for row in reader:
-            if len(row) > 0 and row[0] != "File Name": #and row[2] != "0":
+            if len(row) > 0 and row[0] != "File Name" and row[2] != "0":
                 number += 1
                 number_list += [number]
-                mpr = float(row[1])
-                diameter = int(row[2])
-                gene_count = int(row[3])
-                DP_timings += [float(row[4])]
-                diameter_timings += [float(row[5])]
+                mpr = float(row[2])
+                diameter = int(row[3])
+                gene_count = int(row[4])
+                DP_timings += [float(row[5])]
+                diameter_timings += [float(row[6])]
                 total_timings += [DP_timings[-1] + diameter_timings[-1]]
                 mpr_list += [mpr]
                 diameter_list += [diameter]
@@ -61,53 +61,76 @@ def findExtrema(csv_file):
         displayListValues(DP_timings, "DP Time (seconds)")
         displayListValues(total_timings, "Total Time (seconds)")
 
-    fig, ax = plt.subplots(ncols=2, nrows=2)
+    size = 0.6
+    color = 'black'
+
+    fig, ax = plt.subplots(ncols=3, nrows=2)
     fig.canvas.set_window_title("{0} Diameters Calculated Main".format(len(diameter_list)))
-    diameter_hist = ax[0][1]
-    mpr_diameter = ax[0][0]
-    diameter = ax[1][0]
+    norm_diameter_hist = ax[1][0]
+    norm_mpr_diameter = ax[1][2]
     norm_diameter = ax[1][1]
-    diameter.scatter(gene_count_list, diameter_list, c=gene_count_list)
+    diameter = ax[0][1]
+    diameter_hist = ax[0][0]
+    mpr_diameter = ax[0][2]
+    ax[1][0].set_ylabel("Normalized Diameter Counts")
+    ax[0][0].set_ylabel("Diameter Counts")
+    diameter.scatter(gene_count_list, diameter_list, c=color, s=size)
     diameter.set_xlabel("Gene Node Count")
-    diameter.set_ylabel("Diameter")
     diameter.set_title("Diameter/Gene Count")
+    diameter.set_ylim(-60, 1260)
+    diameter.set_xlim(-100,2100)
     diameter.grid()
-    norm_diameter.scatter(gene_count_list, diameter_over_gene_list, c=gene_count_list)
+
+    norm_diameter.scatter(gene_count_list, diameter_over_gene_list, c=color, s=size)
     norm_diameter.set_xlabel("Gene Node Count")
-    norm_diameter.set_ylabel("Diameter (normalized to gene node count)")
+    #norm_diameter.set_ylabel("Diameter (normalized to gene node count)")
+    norm_diameter.set_ylim(-0.1, 2.1)
+    norm_diameter.set_xlim(-100,2100)
     norm_diameter.set_title("Normalized Diameter/Gene Count")
     norm_diameter.grid()
-    #ax[1][0].scatter(gene_count_list, DP_timings, c=gene_count_list)
-    #ax[1][0].set_xlabel("Gene Count")
-    #ax[1][0].set_ylabel("DP Time (seconds)")
-    #ax[1][0].grid()
 
-    diameter_hist.hist(diameter_over_gene_list, 100, orientation='horizontal')
-    diameter_hist.set_ylabel("Diameter (normalized to gene node count)")
-    diameter_hist.set_xlabel("Number of Results")
-    diameter_hist.set_title("Normalized Diameter Counts")
-    diameter_hist.set_ylim(-0.1, 2.1)
+    norm_diameter_hist.hist(diameter_over_gene_list, 100, orientation='horizontal')
+    #norm_diameter_hist.set_ylabel("Diameter (normalized to gene node count)")
+    norm_diameter_hist.set_xlabel("Number of Gene Families")
+    norm_diameter_hist.set_title("Normalized Diameter Counts")
+    norm_diameter_hist.set_ylim(-0.1, 2.1)
+    norm_diameter_hist.grid()
+
+    diameter_hist.hist(diameter_list, 100, orientation='horizontal')
+    # diameter_hist.set_ylabel("Diameter")
+    diameter_hist.set_xlabel("Number of Gene Families")
+    diameter_hist.set_title("Diameter Counts")
+    diameter_hist.set_ylim(-60, 1260)
     diameter_hist.grid()
+
     #ax[1][1].scatter(diameter_over_gene_list, diameter_timings, c=gene_count_list)
     #ax[1][1].set_xlabel("Diameter (normalized to gene count)")
     #ax[1][1].set_ylabel("Diameter Time (seconds)")
     #ax[1][1].grid()
-    mpr_diameter.scatter(mpr_list, diameter_over_gene_list, c=gene_count_list)
-    mpr_diameter.set_ylim(-0.1, 2.1)
+    norm_mpr_diameter.scatter(mpr_list, diameter_over_gene_list, c=color, s=size)
+    norm_mpr_diameter.set_ylim(-0.1, 2.1)
+    norm_mpr_diameter.set_xlabel("MPR Count")
+    norm_mpr_diameter.set_title("Normalized Diameter/MPR Count")
+    norm_mpr_diameter.grid()
+    norm_mpr_diameter.set_xscale('log')
+
+    mpr_diameter.scatter(mpr_list, diameter_list, c=color, s=size)
+    mpr_diameter.set_ylim(-60, 1260)
     mpr_diameter.set_xlabel("MPR Count")
-    mpr_diameter.set_ylabel("Diameter (normalized to gene node count)")
-    mpr_diameter.set_title("Normalized Diameter/MPR Count")
+    mpr_diameter.set_title("Diameter/MPR Count")
     mpr_diameter.grid()
     mpr_diameter.set_xscale('log')
 
-    plt.show()
 
+
+    plt.show()
+    return
     fig, ax = plt.subplots(ncols=3, nrows=1)
     fig.canvas.set_window_title("{0} Diameters Calculated Time Complexity".format(len(diameter_list)))
     DP_time = ax[0]
     diameter_time = ax[1]
     total_time = ax[2]
-    diameter_time.scatter(gene_count_list, diameter_timings, c=diameter_over_gene_list)
+    diameter_time.scatter(gene_count_list, diameter_timings, c=diameter_over_gene_list, s=size)
     diameter_time.set_xlabel("Gene Node Count")
     diameter_time.set_ylabel("Diameter Time (seconds)")
     diameter_time.set_title("Diameter Time Complexity")
@@ -115,14 +138,14 @@ def findExtrema(csv_file):
     diameter_time.set_ylim(0.01, (10**5))
     diameter_time.set_yscale('log')
     diameter_time.set_xscale('log')
-    DP_time.scatter(gene_count_list, DP_timings, c=diameter_over_gene_list)
+    DP_time.scatter(gene_count_list, DP_timings, c=diameter_over_gene_list, s=size)
     DP_time.set_xlabel("Gene Node Count")
     DP_time.set_ylabel("DP Time (seconds)")
     DP_time.set_title("DP Time Complexity")
     DP_time.grid()
     DP_time.set_yscale('log')
     DP_time.set_xscale('log')
-    total_time.scatter(gene_count_list, total_timings, c=diameter_over_gene_list)
+    total_time.scatter(gene_count_list, total_timings, c=diameter_over_gene_list, s=size)
     total_time.set_xlabel("Gene Node Count")
     total_time.set_ylabel("Total Time (seconds)")
     total_time.set_title("Total Time Complexity")
@@ -146,3 +169,16 @@ def findSpecific(col, value, csv_file="COG_Pilot_Log_02.csv", tol=0):
 
 def t():
     findExtrema("COG_Pilot_Log_02.csv")
+
+def check_files():
+
+    data_files = map(lambda x: "TreeLifeData/" + x, os.listdir("TreeLifeData/"))
+    with open("COG_Pilot_Log_02.csv") as file:
+        reader = csv.reader(file)
+        for row in reader:
+            if row[0] not in data_files:
+                print "Duplicate: {0}".format(row[0])
+            else:
+                data_files.remove(row[0])
+        print data_files
+
