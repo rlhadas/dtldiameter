@@ -1,4 +1,4 @@
-import DP
+import DTLReconGraph
 import time
 import csv
 import os.path
@@ -324,7 +324,7 @@ def print_table_nicely(table, deliminator, name="\t", type="map"):
 
 
 def clean_graph(graph, gene_tree_root):
-    """Cleans up the graph created by DP.py by turning removing scores from events and event lists, and removes any
+    """Cleans up the graph created by DTLReconGraph.py by turning removing scores from events and event lists, and removes any
      loss events on the root gene node."""
     #TODO: check with andrew, see if we still need to remove loss events
     for key in graph:
@@ -460,7 +460,7 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog.csv", debu
     start_time = time.clock()
 
     # Get everything we need from DP
-    edge_species_tree, edge_gene_tree, graph, mpr_count = DP.reconcile(filename, D, T, L)
+    edge_species_tree, edge_gene_tree, graph, mpr_count = DTLReconGraph.reconcile(filename, D, T, L)
 
     # And record the amount of time DP took
     DP_time_taken = time.clock() - start_time
