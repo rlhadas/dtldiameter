@@ -1,19 +1,21 @@
 # Diameter.py
-# Eli Zupke, June 2017
-# Written based off of Jordan Haack's work on a polynomial-time algorithm for the DTL MPR Diameter Problem
+# Written by Eli Zupke and Andrew Ramirez June 2017
+# It is based off of Jordan Haack's work on a polynomial-time algorithm for the DTL MPR Diameter Problem
 
-# ON THE NAMING CONVENTION OF THE TWO TREES:
-#   This file calls the two trees the gene tree and the species tree. Other programs, like DP.py, have different
-#   naming conventions (such as "host" for the species tree and "parasite" for the gene tree) because they were coded
-#   under different assumptions as to what the two trees represent. Let it be understood that these names are
-#   synonymous, and that references to "hTop" or "pTop" refer to the name of the handle of the species and
-#   parasite trees that DP outputs.
+# 0. ON THE PAPER
+#
+#       This program is based off of an algorithm written by Jordan Haack. There is a paper that describes this
+#   algorithm more thoroughly than can be expressed in source code comments. The paper title is "Computing the Diameter
+#   of the Space of Maximum Parsimony Reconciliations in the Duplication-Transfer-Loss Model". #TODO add more info
+#
+#   Note that in this documentation and in that paper, there is a notion of the "group" of a node
 
-# ON TREE REPRESENTATION FORMATS:
-#   This file deals with trees in two formats: Edge-based formats, and vertex-based formats. The edged-based
+# 1. ON TREE REPRESENTATION FORMATS:
+#
+#       This file deals with trees in two formats: Edge-based formats, and vertex-based formats. The edged-based
 #   trees are what are output from DP.py (which returns them straight from newickFormatReader), and are what this
 #   file uses to represent the species tree. For readability and convenience purposes, the gene tree is converted to
-#   a vertex tree in the reformat_tree() method. TODO: EXPLAIN NAMING CONVENTION
+#   a vertex tree in the reformat_tree() method.
 #
 #   Both trees use dictionaries to store the tree structure, but formats differ slightly.
 # Example:
@@ -24,20 +26,98 @@
 #
 #   And an entry in the vertex-based representation looks like this:
 #       {'N':('C1','C2') ...}
+#
+#   Because the standard elsewhere in this codebase is to use edge-based trees, all vertex-based tree variable names
+#   will explicitly contain the word "vertex", while edge-based trees will not. So, an edge-based tree can be named
+#   "tree" while a vertex-based tree has to be named "vertex_tree".
 
-# ON THE USAGE OF PATHS AND THE PATH REPRESENTATION FORMAT:
-#   compute_enter_mapping_table() needs to find the symmetric set difference between every pair of paths on the gene
-#   tree. This is pre-computed in compute_path_symmetric_set_difference_table() and stored in a nested dictionary
+# 2. ON THE NAMING CONVENTION OF THE TWO TREES:
+#
+#       This file calls the two trees the gene tree and the species tree. Other programs, like DP.py, have different
+#   naming conventions (such as "host" for the species tree and "parasite" for the gene tree) because they were coded
+#   under different assumptions as to what the two trees represent. Let it be understood that these names are
+#   synonymous, and that references to "hTop" or "pTop" refer to the name of the handle of the species and
+#   gene trees that DP outputs.
+
+
+# 3. ON THE USAGE OF PATHS AND THE PATH REPRESENTATION FORMAT:
+#
+#       compute_enter_mapping_table() needs to use the symmetric set difference between every pair of paths on the gene
+#   tree. This is pre-computed in build_path_symmetric_set_difference_table() and stored in a nested dictionary.
 #   The format of each path is a tuple where the first entry is the species node that the path starts on, and the second
 #   entry is the species node that the path ends on. These paths are stored as the keys of a dictionary called
-#   path_edges. The values of the paths 
+#   path_edges.
 
+# 4. ON THE DYNAMIC PROGRAMMING TABLES AND THEIR FUNCTIONS:
+#
+#       The Diameter algorithm involves the use of three dynamic programming tables:
+#   The enter_mapping_table, the exit_mapping_table, and the exit_event_table. All three of these have the same key
+#   format: [u][x][y], where u is a node on the gene tree, and x and y are either event nodes or mapping nodes. Which
+#   type each table has is evident in the name.
+#
+#       These tables are computed for every gene node, in post-order. Functions that begin with the word 'computed'
+#   build these tables by taking them in as a reference and modifying the values. These functions return nothing.
+#   Other functions (such as one starting with 'build') actually return the thing that they are creating.
+#
+#       The tables are described in detail in the technical report, but a summary of their functions follows:
+#
+#       exit_event_table contains the largest number of event nodes that each pair of reconciliations rooted at events
+#   x and y can differ for, where x and y are exit-event nodes in Group(u).
+#       exit_mapping_table contains the largest number of event nodes that each pair of reconciliation subtrees rooted
+#   at mapping nodes x and y can differ for, on the condition that x and y go immediately to an exit-event.
+#       enter_mapping_table is contains the largest number of event nodes that each pair of reconciliation subtrees
+#   rooted at x and y can differ for when x and y are used to enter Group(u).
+#
+#       To get a better sense of how the tables are structured, you can try running an example in debug mode, which
+#   will actually print out these tables.
 
-# TODO: Explain edge vs vertex and naming conventions
+# 5. ON EXIT_X_BY_Y DICTIONARIES:
+#
+#       There are several helper dictionaries which pertain to exit events. Their names should be pretty self
+#   explanatory, but they are described more fully here.
+#
+#   exit_events_by_mapping, is keyed by mapping node, and every entry corresponds to a list containing every exit event
+# that is a child of that mapping node
+#   exit_events_by_gene, is keyed by gene node, and where entry corresponds to a list containing every exit event in
+# the group of that gene node
+#   exit_mappings_by_gene, is keyed by gene node, and where  entry corresponds to a list containing every mapping node
+# in group of that gene node, on the condition that that mapping node has an exit event
 
-# TODO: Explain path format
-
-
+# -1. DATA STRUCTURE QUICK REFERENCE:
+#
+#   DTL Reconciliation graph:
+#       { mapping_node: [event1, event2, ... eventn, number] ...}
+#
+#   Mapping node:
+#       ('gene_node','SPECIES_NODE')
+#   or in loss or contemporary event nodes:
+#       (None, None)
+#
+#   Event node:
+#       ('type', child_mapping_node1, child_mapping_node2, number)
+#
+#   (edge) tree:
+#       {('R','N'): ('R','N', ('N','C1'), ('N','C2')) ...}
+#       aka:
+#       {root_edge: (root_edge[0], root_edge[1], child1_edge, child2_edge) ...}
+#
+#   vertex_tree:
+#       {'N':('C1','C2') ...}
+#
+#   path:
+#       ('SOURCE','DESTINATION')
+#
+#   path_edges:
+#       {path: [edge1, edge2, edge3, ...] ...}
+#
+#   exit_events_by_mapping:
+#       {mapping_node: [exit_event1, exit_event2, ...] ...}
+#
+#   exit_events_by_gene:
+#       {gene_node: [exit_event1, exit_event2, ...] ...}
+#
+#   exit_mappings_by_gene:
+#       {gene_node: [exit_mapping_node1, exit_mapping_node2, ...] ...}
 
 import DP
 import time
@@ -47,79 +127,81 @@ import sys
 from collections import OrderedDict
 
 
-def reformat_tree(edge_tree, root):
-    """A recursive function that changes the format of a (species or gene) tree from edge to vertex, for example:
-    ('A','B'): ('A','B',('B',C1),('B',C2)) would become 'B':(C1,C2). It returns the tree (in postorder), the root of
-    the tree, and the number of nodes in the tree. The base case of this function is when there are no children for a
-    given root.
-    :param edge_tree:   A tree in edge format
+def reformat_tree(tree, root):
+    """A recursive function that changes the format of a (species or gene) tree from edge to vertex, as described
+    aboce. It returns the tree (in postorder), the root of the tree, and the number of nodes in the tree. The base
+    case of this function is when there are no children for a given root.
+    :param tree:        A tree in edge format
     :param root:        The root of that tree
-    :return:            The new vertex based tree, the root of that tree, and the number of nodes in that tree. """
+    :return:            0: The new vertex based tree,
+                        1: The root of that tree, and
+                        2: The number of nodes in that tree. """
 
     # This line catches the "xTop" handle and replaces
-    new_root = root[1] if isinstance(root, tuple) else edge_tree[root][1]
+    new_root = root[1] if isinstance(root, tuple) else tree[root][1]
 
-    child1 = edge_tree[root][2][1] if edge_tree[root][2] is not None else None  # These lines handle the leaves, where
-    child2 = edge_tree[root][3][1] if edge_tree[root][3] is not None else None  # there is None in the place of a tuple
+    child1 = tree[root][2][1] if tree[root][2] is not None else None  # These lines handle the leaves, where
+    child2 = tree[root][3][1] if tree[root][3] is not None else None  # there is None in the place of a tuple
 
-    # This is the edge_tree that we will be returning. We will add the subtrees of our children first, then add this node.
-    new_tree = OrderedDict()  # This has to be an OrderedDict, otherwise we can't guarantee it's in postorder
+    # This is the tree that we will be returning. We will add the subtrees of our children first, then add this node.
+    new_vertex_tree = OrderedDict()  # This has to be an OrderedDict, otherwise we can't guarantee it's in postorder
 
     # This is the number of nodes in the subtree rooted at each of our children
     child1_count = 0
     child2_count = 0
 
     if child1 is not None:  # If this node has children, then we need to add their children's subtrees to the dict
-        child1_tree, _, child1_count = reformat_tree(edge_tree, edge_tree[root][2])
-        new_tree.update(child1_tree)
+        child1_tree, _, child1_count = reformat_tree(tree, tree[root][2])
+        new_vertex_tree.update(child1_tree)
     if child2 is not None:
-        child2_tree, _, child2_count = reformat_tree(edge_tree, edge_tree[root][3])
-        new_tree.update(child2_tree)
-    new_tree.update({new_root: (child1, child2)})  # We add this node last, to ensure postorderness.
+        child2_tree, _, child2_count = reformat_tree(tree, tree[root][3])
+        new_vertex_tree.update(child2_tree)
+    new_vertex_tree.update({new_root: (child1, child2)})  # We add this node last, to ensure postorderness.
 
-    return new_tree, new_root, (child1_count + child2_count + 1)
+    return new_vertex_tree, new_root, (child1_count + child2_count + 1)
 
-def find_valid_paths(current_edge, previous_edges, edge_tree):
-    """A recursive algorithm to find all of the valid paths through a binary edge-based tree that end at or below a
+def find_paths_ending_past_here(current_edge, previous_edges, tree):
+    """A recursive function to find all of the valid paths through a binary edge-based tree that end at or below a
     currently examined edge, and the edges included in each path.
-     :param current_edge:   The edge we are examining
-     :param previous_edges: The edges that you would traverse to get here, in that order
-     :param edge_tree:      The tree in its entirety.
-     :return:               The """
-    # Todo make it clear that current_edge is anedge, fix naming, fix docstring
+     :param current_edge:   The edge we are examining in this function call
+     :param previous_edges: A list of the edges that you would traverse to get to current_edge from the root of the
+                            tree, in order
+     :param tree:           The (edge-based) tree in its entirety.
+     :return:               A dictionary that is keyed by path and contains lists of edges for each path."""
+
     next_edges = previous_edges + [current_edge]  # This list contains every node we visited to get here from the current_edge
     path_edges = {}  # This is the edges contained in each path.
     for i in range(0, len(next_edges)):
         source_node = next_edges[i]
         # new_path becomes every path that ends in this value, including A->A
         if i >= len(next_edges) - 1:
-            new_path = (edge_tree[source_node][1], edge_tree[source_node][1])  # An ugly hack to account for the top of the edge_tree
+            new_path = (tree[source_node][1], tree[source_node][1])  # An ugly hack to account for the top of the tree
         else:
-            new_path = (edge_tree[source_node][1], current_edge[1])  # This is what we should always be able to do
+            new_path = (tree[source_node][1], current_edge[1])  # This is what we should always be able to do
         path_edges[new_path] = next_edges[i + 1:len(next_edges)]  # This is the list of edges
 
-    child1 = edge_tree[current_edge][2]
-    child2 = edge_tree[current_edge][3]
+    child1 = tree[current_edge][2]
+    child2 = tree[current_edge][3]
 
     if child1 is not None:  # Then this Node is not a leaf Node, so we need to add this Node's children
-        child1_path_edges = find_valid_paths(child1, next_edges, edge_tree)
-        child2_path_edges = find_valid_paths(child2, next_edges, edge_tree)
+        child1_path_edges = find_paths_ending_past_here(child1, next_edges, tree)
+        child2_path_edges = find_paths_ending_past_here(child2, next_edges, tree)
         child1_path_edges.update(child2_path_edges)
         path_edges.update(child1_path_edges)
-        # Otherwise, we have reached the end of the edge_tree (the base case)
+        # Otherwise, we have reached the end of the tree (the base case)
     return path_edges
 
 
-def find_valid_paths_wrapper(root, edge_tree):
-    """A function that uses find_valid_paths to find all of the valid paths on the given edge-based tree
+def find_valid_paths(root, tree):
+    """A function that uses find_paths_ending_past_here to find all of the valid paths on the given edge-based tree
     and returns the list of paths, a dict containing the edges for each path, and a list of
     non-trivial paths (where source != destination)
-    :param root:        The root node of the edge_tree
-    :param edge_tree:   The tree to find valid paths through
-    :return: A dict containing the lists of edges contained in each vaild path across the tree, and
-    a list of non-trivial paths (where the source is not the same as the destination) """
+    :param root:        The root node of the tree
+    :param tree:        The (edge-based) tree to find valid paths through
+    :return:            0: A dict containing the lists of edges contained in each vaild path across the tree, and
+                        1: A list of non-trivial paths (where the source is not the same as the destination) """
 
-    path_edges = find_valid_paths(root, [], edge_tree)
+    path_edges = find_paths_ending_past_here(root, [], tree)
 
     # Strip out any trivial paths where source = destination (such as A->A). They have no path edges, so the length is
     # zero.
@@ -127,11 +209,12 @@ def find_valid_paths_wrapper(root, edge_tree):
     return path_edges, non_trivial_path_list
 
 
-def compute_path_symmetric_set_difference_table(path_edges):
+def build_path_symmetric_set_difference_table(path_edges):
     """Computes the table containing the number of nodes in the symmetric set difference between any two paths on the
      species tree sTree. This is used in assigning a score to two paths' losses.
-     :param path_edges:
-     :return: """
+     :param path_edges:     A dictionary containing the edges of every possible path, as created in find_valid_paths
+     :return:               A nested dictionary keyed by path, with values corresponding to the symmetric set
+                            difference between the edges of those paths."""
 
     # Note: If you wish to modify the code to assign different scores for each gene node, modifying this function
     # to provide the actual lists of nodes in the SSD might be a good place to start
@@ -154,15 +237,16 @@ def compute_path_symmetric_set_difference_table(path_edges):
             symmetric_set_difference_table[path_a][path_b] = len(
                 path_sets[path_a].symmetric_difference(path_sets[path_b]))
 
-    # Note: symmetric_set_difference_table[a][b] should equal symmetric_set_difference_table[b][a]. A good optimization of this function would take advantage of that
+    # Note: symmetric_set_difference_table[a][b] should equal symmetric_set_difference_table[b][a]. A good optimization
+    #  of this function would take advantage of that property to only have to run ~half the computations
 
     return symmetric_set_difference_table
 
 
-def compute_lossless_path_symmetric_set_difference_table(path_edges):
-    """Works like compute_path_symmetric_set_difference_table, but returns an SSD filled with all 0s
-    :param path_edges:
-    :return:
+def build_lossless_path_symmetric_set_difference_table(path_edges):
+    """Works like build_path_symmetric_set_difference_table, but returns an SSD filled with all 0s
+    :param path_edges:  A dictionary containing the edges of every possible path, as created in find_valid_paths
+    :return:            A nested dictionary keyed by path, with values of 0
     """
 
     # This is the Symmetric Set Difference table we will be returning
@@ -177,74 +261,80 @@ def compute_lossless_path_symmetric_set_difference_table(path_edges):
     return symmetric_set_difference_table
 
 
-def build_exit_dicts(graph):
-    """Builds a dict containing lists of exit event nodes, each list keyed by the gene node.
-    :param graph:
-    :return:
+def build_exit_dicts(dtl_recon_graph):
+    """This method goes through every exit event on the reconciliation graph, and builds up three dictionaries that
+    pertain to exit events.
+    :param dtl_recon_graph: The DTL reconciliaton graph
+    :return:    Three dictionaries:
+                0. exit_events_by_mapping, which is keyed by mapping node, and where every entry corresponds to a list
+                containing every exit event that is a child of that mapping node
+                1. exit_events_by_gene, which is keyed by gene node, and where every entry corresponds to a list
+                containing every exit event in the group of that gene node
+                2. exit_mappings_by_gene, which is keyed by gene node, and where every entry corresponds to a list
+                containing every mapping node in group of that gene node, on the condition that that mapping node
+                has an exit event
     """
-    # Todo: fix horrible docstring
-    # exit_event_graph is a dict that contains each exit (non-loss) event in the reconciliation graph, keyed by mapping node.
-    exit_event_graph = {}
-
-    # exit_event_dict is the same as exit_event_graph, except it is keyed by gene node.
-    exit_event_dict = {}
-
-    # exit_mapping_node_dict is a dict that contains every mapping node that contains an exit event, keyed by gene node
-    exit_mapping_dict = {}
+    # These dicts are explained in the docstring directly above here.
+    exit_events_by_mapping = {}
+    exit_events_by_gene = {}
+    exit_mappings_by_gene = {}
 
     # Here we iterate over every event node of every mapping node.
-    for mapping_node in graph:
-        for event in graph[mapping_node]:
+    for mapping_node in dtl_recon_graph:
+        for event in dtl_recon_graph[mapping_node]:
 
             # Ignore scores and loss events
             if isinstance(event, tuple) and event[0] != 'L':
 
                 gene_node = mapping_node[0]
-                # Todo: investigate append vs +=
                 # For each of these three blocks, the if statement initializes the list if necessary, and then adds the
                 # correct element into the list
-                if gene_node not in exit_event_dict:
-                    exit_event_dict[gene_node] = []
-                exit_event_dict[gene_node].append(event)
+                if gene_node not in exit_events_by_gene:
+                    exit_events_by_gene[gene_node] = []
+                # Use append to avoid adding the elements of the tuple themselves to the list
+                exit_events_by_gene[gene_node].append(event)
 
-                if gene_node not in exit_mapping_dict:
-                    exit_mapping_dict[gene_node] = []
-                exit_mapping_dict[gene_node] += [mapping_node]
+                if gene_node not in exit_mappings_by_gene:
+                    exit_mappings_by_gene[gene_node] = []
+                exit_mappings_by_gene[gene_node] += [mapping_node]
 
-                if mapping_node not in exit_event_graph:
-                    exit_event_graph[mapping_node] = []
-                exit_event_graph[mapping_node].append(event)
+                if mapping_node not in exit_events_by_mapping:
+                    exit_events_by_mapping[mapping_node] = []
+                exit_events_by_mapping[mapping_node].append(event)
 
-    return exit_event_graph, exit_event_dict, exit_mapping_dict
+    return exit_events_by_mapping, exit_events_by_gene, exit_mappings_by_gene
 
 
 def compute_trivial_exit_event_table(u, exit_event_table):
     """This function computes and stores the score of the exit event on a leaf node 'u' of the gene tree.
     As this event will always be a C event that is shared by all nodes, this value will always be 0.
-    :param u:
-    :param exit_event_table: """
+    :param u:                   The gene node for which we want to compute the table.
+    :param exit_event_table:    The dp table we will compute """
     exit_event_table[u] = {}
     exit_event_table[u][('C', (None, None), (None, None))] = {}
     exit_event_table[u][('C', (None, None), (None, None))][('C', (None, None), (None, None))] = 0
 
 
-def compute_exit_event_table(u, exit_event_table, enter_mapping_table, exit_event_dict):
+def compute_exit_event_table(u, exit_event_table, enter_mapping_table, exit_events_by_gene):
     """This function computes and stores the score of the exit event on a non-leaf node 'u' of the gene tree.
-    :param u:
-    :param exit_event_table:
-    :param enter_mapping_table:
-    :param exit_event_dict:
+    :param u:                       The gene node for which we want to compute the table.
+    :param exit_event_table:        The dp table we will compute
+    :param enter_mapping_table:     A dp table that we will use
+    :param exit_events_by_gene:
     """
-    # TODO: fix docstring, explain that this function does not return anything, but the GOAL is to modify exit_event_table
+
+    # Initialize u's exit_event_table entry
+    exit_event_table[u] = {}
+
     # Here we must iterate over every pair of events
-    for e1 in exit_event_dict[u]:
+    for e1 in exit_events_by_gene[u]:
         child1 = e1[1][0]
         child2 = e1[2][0]
         # B and C are the species nodes of the two mapping nodes of e1
         B = e1[1][1]
         C = e1[2][1]
         exit_event_table[u][e1] = {}
-        for e2 in exit_event_dict[u]:
+        for e2 in exit_events_by_gene[u]:
             # E and F are the species nodes of the two mapping nodes of e2
             # We need to account for the case that the children of u are in opposite order between the two events
             if child1 == e2[1][0]:
@@ -262,22 +352,19 @@ def compute_exit_event_table(u, exit_event_table, enter_mapping_table, exit_even
                                            + enter_mapping_table[child2][uC][uF] \
                                            + (2 if e1 != e2 else 0)
 
-            # TODO: unify "tables" and "scores" for functions and variables
 
-
-def compute_exit_mapping_table(u, exit_mapping_table, exit_event_table, exit_mapping_node_dict, exit_event_graph):
+def compute_exit_mapping_table(u, exit_mapping_table, exit_event_table, exit_mappings_by_gene, exit_events_by_mapping):
     """This function computes and stores the maximum possible score of the exit from gene node u
     :param u:
     :param exit_mapping_table:
     :param exit_event_table:
-    :param exit_mapping_node_dict:
-    :param exit_event_graph:
+    :param exit_mappings_by_gene:
+    :param exit_events_by_mapping:
     """
 
     # u_mapping_nodes contains all nodes in Group(u) that have exit events
-    u_mapping_nodes = exit_mapping_node_dict[u]
+    u_mapping_nodes = exit_mappings_by_gene[u]
 
-    # TODO: find out if we need to do this
     # Initialize u's exit_mapping_table entry
     exit_mapping_table[u] = {}
 
@@ -285,23 +372,25 @@ def compute_exit_mapping_table(u, exit_mapping_table, exit_event_table, exit_map
         exit_mapping_table[u][uA] = {}
         for uB in u_mapping_nodes:
             max_value = 0
-            for E1 in exit_event_graph[uA]:
-                for E2 in exit_event_graph[uB]:
+            for E1 in exit_events_by_mapping[uA]:
+                for E2 in exit_events_by_mapping[uB]:
                     max_value = max(exit_event_table[u][E1][E2], max_value)
             exit_mapping_table[u][uA][uB] = max_value
 
 
-def create_loss_reachable(graph, root_mapping_node):
+def build_loss_reachable(graph, root_mapping_node):
     """A recursive function to create the list of the mapping nodes that can be reached through loss events.
     (The base case is when you can't get to a loss node from a mapping node)
     :param graph:
     :param root_mapping_node:
     :return: """
     loss_reachable = []
-    # TODO: remind what events look like
+
     loss_events = filter(lambda e: e[0] == 'L', graph[root_mapping_node])  # Grab all loss events
+    # For explanation of this, see the data structure quick reference.
+
     for event in loss_events:
-        loss_reachable += create_loss_reachable(graph, event[1])
+        loss_reachable += build_loss_reachable(graph, event[1])
     return loss_reachable + [root_mapping_node]
 
 
@@ -321,12 +410,11 @@ def compute_enter_mapping_table(u, enter_mapping_table, exit_mapping_table, mapp
         if node[0] == u:
             u_mapping_nodes.append(node)
 
-    # TODO: fix horrible "loss_reachable" naming
     loss_reachable = {}  # Every mapping node (in u)'s list of mapping nodes that can be reached through loss events
 
     for mapping_node in u_mapping_nodes:
-        loss_reachable[mapping_node] = create_loss_reachable(graph, mapping_node)
-    # TODO I think this is already done
+        loss_reachable[mapping_node] = build_loss_reachable(graph, mapping_node)
+
     enter_mapping_table[u] = {}
     for uA in u_mapping_nodes:
         enter_mapping_table[u][uA] = {}
@@ -365,7 +453,7 @@ def event_to_string(event):
 
 
 def print_table_nicely(table, deliminator, name="\t", type="map"):
-    """Takes a table (a 2D dict keyed with tuples) and prints a nicely formatted table. Used for debugging.
+    """Takes a table (a 2D dict keyed with tuples) and prints a nicely formatted table. Used for debugging and wall art.
     :param table:
     :param deliminator:
     :param name:
@@ -412,33 +500,33 @@ def print_table_nicely(table, deliminator, name="\t", type="map"):
     print "\033[0m"  # Return to default color
 
 
-def clean_graph(graph, gene_tree_root):
+def clean_graph(dtl_recon_graph, gene_tree_root):
     """Cleans up the graph created by DP.py by turning removing scores from events and event lists, and removes any
      loss events on the root gene node.
-     :param graph:
+     :param dtl_recon_graph:
      :param gene_tree_root: """
-    # TODO: check with andrew, see if we still need to remove loss events
-    for key in graph:
+    for key in dtl_recon_graph:
         # Get rid of all of the random numbers in the event list
-        graph[key] = filter(lambda e: not isinstance(e, (float, int)), graph[key])
-        # The events in the event graph are stored as lists which cannot be used as dict keys. Let's fix that.
-        for i in range(0, len(graph[key])):
+        dtl_recon_graph[key] = filter(lambda e: not isinstance(e, (float, int)), dtl_recon_graph[key])
+        # The events in the event dtl_recon_graph are stored as lists which cannot be used as dict keys. Let's fix that.
+        for i in range(0, len(dtl_recon_graph[key])):
             # Get rid of the last value, as it is a number we don't need
-            graph[key][i] = graph[key][i][:-1]
-        if key[0] == gene_tree_root:
-            graph[key] = filter(lambda e: not e[0] == 'L', graph[key])
+            dtl_recon_graph[key][i] = dtl_recon_graph[key][i][:-1]
 
-            # TODO: edge_species_tree -> species tree, gene_tree -> edge_gene_tree
+        # DP should be filtering the loss events on the root node out, so we don't need to worry about it
+        # if key[0] == gene_tree_root:
+            # dtl_recon_graph[key] = filter(lambda e: not e[0] == 'L', dtl_recon_graph[key])
 
 
-def diameter_algorithm(edge_species_tree, gene_tree, gene_tree_root, graph, debug, zero_loss):
+
+def diameter_algorithm(species_tree, vertex_gene_tree, gene_tree_root, dtl_recon_graph, debug, zero_loss):
     """This function is the one that actually computes the diameter. It initializes many dictionaries, computes the
     symmetric set difference between every pair of paths on the species tree, and then runs the algorithm as described
     in Jordan's paper.
-    :param edge_species_tree:
-    :param gene_tree:
+    :param species_tree:
+    :param vertex_gene_tree:
     :param gene_tree_root:
-    :param graph:
+    :param dtl_recon_graph:
     :param debug:
     :param zero_loss:
     :return: """
@@ -447,67 +535,51 @@ def diameter_algorithm(edge_species_tree, gene_tree, gene_tree_root, graph, debu
 
     # We need to get path_edges, a dict containing all of the edges for each path
     #   and non_trivial_path_list, a subset of path_list with all paths A->A removed.
-    path_edges, non_trivial_path_list = find_valid_paths_wrapper("hTop", edge_species_tree)
+    path_edges, non_trivial_path_list = find_valid_paths("hTop", species_tree)
 
-    # The key format for the next three dicts are as follows: [u][x][y], where u is a node on the gene tree, and
-    # x and y are either event nodes (represented as E1 and E2) or mapping nodes (represented as uA and uB).
-
-    # exit_event_table is a dict containing the largest number of event nodes that each pair of reconciliation subtrees
-    # rooted at E1 and E2 can differ for, where E1 and E2 are exit-event nodes in Group(u).
+    # The dynamic programming tables, as described in section 4 of the header.
     exit_event_table = {}
-
-    # exit_mapping_table is a dict containing the largest number of event nodes that each pair of reconciliation
-    # subtrees rooted at uA and uB can differ for, on the condition that uA and uB go immediately to an exit-event.
     exit_mapping_table = {}
-
-    # enter_mapping_table is a dict containing the largest number of event nodes that each pair of reconciliation
-    # subtrees rooted at uA and uB can differ for when uA and uB are used to enter Group(u).
     enter_mapping_table = {}
 
-    # This list contains each mapping node in the reconciliation graph
-    mapping_node_list = graph.keys()
+    # This list contains each mapping node in the reconciliation dtl_recon_graph
+    all_mapping_nodes = dtl_recon_graph.keys()
 
     # path_symmetric_set_difference is a 2D dict containing the SSD count for each pair of species node paths.
     if zero_loss:  # If losses don't count for Diameter, then we use an all 0 pSSD table.
-        path_symmetric_set_difference = compute_lossless_path_symmetric_set_difference_table(path_edges)
+        path_symmetric_set_difference = build_lossless_path_symmetric_set_difference_table(path_edges)
     else:
-        path_symmetric_set_difference = compute_path_symmetric_set_difference_table(path_edges)
+        path_symmetric_set_difference = build_path_symmetric_set_difference_table(path_edges)
 
-    # exit_event_graph is a dict that contains each exit (non-loss) event in the reconciliation graph, keyed by mapping node.
-    #   exit_event_dict is the same as exit_event_graph except it is keyed by gene node.
-    #   exit_mapping_node_dict is a dict that contains every mapping node that contains an exit event, keyed by gene node.
-    exit_event_graph, exit_event_dict, exit_mapping_node_dict = build_exit_dicts(graph)
+    # These dictionaries are explained in section 5 of the header.
+    exit_events_by_mapping, exit_events_by_gene, exit_mappings_by_gene = build_exit_dicts(dtl_recon_graph)
 
     if debug:
         print_table_nicely(path_symmetric_set_difference, "->", "[[SSD]]:")
 
-    # We need to initialize these dicts for every gene node.
-    postorder_gene_vertices = gene_tree.keys()
-    for u in postorder_gene_vertices:
-        enter_mapping_table[u] = {}
-        exit_mapping_table[u] = {}
-        exit_event_table[u] = {}
+    # Gene tree's should already be in postorder, as vertex_gene_tree is an ordered dict.
+    postorder_gene_vertices = vertex_gene_tree.keys()
 
     # This next loop is the algorithm just as described in the paper.
     for u in postorder_gene_vertices:
 
         # Check to see if this is a leaf node of the gene tree
-        if gene_tree[u][0] is not None:
+        if vertex_gene_tree[u][0] is not None:
 
             # If not, then the enter_mapping_table for our children had better exist.
-            assert enter_mapping_table[gene_tree[u][0]] != {} and \
-                   enter_mapping_table[gene_tree[u][1]] != {}
+            assert enter_mapping_table[vertex_gene_tree[u][0]] != {} and \
+                   enter_mapping_table[vertex_gene_tree[u][1]] != {}
 
             # Now we must build the exit event table
-            compute_exit_event_table(u, exit_event_table, enter_mapping_table, exit_event_dict)
+            compute_exit_event_table(u, exit_event_table, enter_mapping_table, exit_events_by_gene)
         else:
 
             # If so, u's exit_event_table table is trivial.
             compute_trivial_exit_event_table(u, exit_event_table)
 
         # Next, we must compute the exit and enter mapping score tables.
-        compute_exit_mapping_table(u, exit_mapping_table, exit_event_table, exit_mapping_node_dict, exit_event_graph)
-        compute_enter_mapping_table(u, enter_mapping_table, exit_mapping_table, mapping_node_list, graph,
+        compute_exit_mapping_table(u, exit_mapping_table, exit_event_table, exit_mappings_by_gene, exit_events_by_mapping)
+        compute_enter_mapping_table(u, enter_mapping_table, exit_mapping_table, all_mapping_nodes, dtl_recon_graph,
                                     path_symmetric_set_difference)
 
         # If we are in debug mode, we will want some pretty tables to distract us from the harshness of reality. In
@@ -533,7 +605,7 @@ def write_to_csv(csv_file, costs, filename, mpr_count, diameter, gene_node_count
         writer = csv.writer(output_file)
 
         # Write the headers if we need to.
-        if not file_exists: # TODO convert to always calculate zero loss
+        if not file_exists:
             writer.writerow(["File Name", "Costs", "MPR Count", "Diameter", "Gene Node Count",
                              "DP Computation Time", "Diameter Computation Time", "Date"])
 
@@ -552,7 +624,6 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=Fa
       :param L:             The cost for loss events
       :param csv_file:      The csv file to output results to (will create it if it does not exist)
       :param debug:         Whether to print out all of the tables
-      :param zero_loss:     Whether to also compute when the diameter should NOT include loss events
       :return: Nothing"""
 
     # These statements check to make sure that all arguments were entered correctly.
@@ -562,13 +633,12 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=Fa
     assert isinstance(T, int)
     assert isinstance(L, int)
     assert isinstance(debug, bool)
-    #assert isinstance(zero_loss, bool)
 
     # Record the time that DP starts
     start_time = time.clock()
 
     # Get everything we need from DP
-    edge_species_tree, edge_gene_tree, graph, mpr_count = DP.reconcile(filename, D, T, L)
+    species_tree, gene_tree, dtl_recon_graph, mpr_count = DP.reconcile(filename, D, T, L)
 
     # And record the amount of time DP took
     DP_time_taken = time.clock() - start_time
@@ -580,26 +650,23 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=Fa
 
     # The gene tree needs to be in node format, not edge format, so we find that now.
     # (This also puts the gene_tree into postorder, as an ordered dict)
+    gene_tree, gene_tree_root, gene_node_count = reformat_tree(gene_tree, "pTop")
 
-    # TODO: investigate redundant gene_tree_root
-    gene_tree, gene_tree_root, gene_node_count = reformat_tree(edge_gene_tree, "pTop")
-
-    # The DTL reconciliation graph as provided by DP has some extraneous numbers and may have loss events on the root
-    # node. We remove those here.
-    clean_graph(graph, gene_tree_root)
+    # The DTL reconciliation graph as provided by DP has some extraneous numbers. We remove those here.
+    clean_graph(dtl_recon_graph, gene_tree_root)
 
     # Now we draw the rest of the owl
-    diameter = diameter_algorithm(edge_species_tree, gene_tree, gene_tree_root, graph, debug, False)
+    diameter = diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph, debug, False)
 
     # And record how long it took to compute the diameter.
     diameter_time_taken = time.clock() - start_time
 
     start_time = time.clock()
-    zl_diameter = diameter_algorithm(edge_species_tree, gene_tree, gene_tree_root, graph, debug, True)
+    zl_diameter = diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph, debug, True)
     zl_diameter_time_taken = time.clock()-start_time
 
 
-    print "The diameter of the given reconciliation graph is \033[33m\033[1m{0}\033[0m".format(diameter)
+    print "The diameter of the given reconciliation dtl_recon_graph is \033[33m\033[1m{0}\033[0m".format(diameter)
 
     # Timing data is inaccurate in debug mode (print statements take too long), so we only give it to the user in non-
     # debug mode.
@@ -615,41 +682,71 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=Fa
     # And we're done.
     return
 
-def rep_calc(min, max, D, T, L, log):
-    for i in range(min, max):
+# -2. COMMAND LINE FUNCTIONS
+
+def rep_calc():
+    """Command line function to repeatedly run through numbered files located at TreeLifeData/COG####.newick"""
+    if not 7 <= len(sys.argv) <= 8:
+        print_help()
+        return
+    start = int(sys.argv[2])
+    end = int(sys.argv[3])
+    d = int(sys.argv[4])
+    t = int(sys.argv[5])
+    l = int(sys.argv[6])
+    if len(sys.argv) == 8:
+        log = sys.argv[7]
+    else:
+        log = "Log_File"
+    print "Running " + str(end - start) + " sequential jobs on TreeLifeData dataset with DTL of {0},{1},{2}".format(d,t,l)
+    for i in range(start, end):
         print "Reconciling COG" + str(i).zfill(4)
         try:
-            calculate_diameter_from_file("TreeLifeData/COG{0}.newick".format(str(i).zfill(4)), D, T, L, log, False)
+            calculate_diameter_from_file("TreeLifeData/COG{0}.newick".format(str(i).zfill(4)), d, t, l, log, False)
         except IOError:
             print "(File Not Found)"
 
+def print_help():
+    """Prints a usage string."""
+    print "Usage:"
+    print "\ttest: runs a test function"
+    print "\tcalc file d t l [logfile]: calculates the diameter of a provided newick file"
+    print "\trep start end d t l [logfile]: repeatedly runs calc over the numbered COG files located in TreeLifeData"
+
+def test():
+    """Command line function to run a short test."""
+    calculate_diameter_from_file("example", 2, 3, 1, "TestLog", True)
+
+def calc():
+    """Command line function to calculate the diameter of a file"""
+    if not 6 <= len(sys.argv) <= 7:
+        print_help()
+        return
+    file = sys.argv[2]
+    d = int(sys.argv[3])
+    t = int(sys.argv[4])
+    l = int(sys.argv[5])
+    if len(sys.argv) == 7:
+        log = sys.argv[6]
+    else:
+        log = "Log_File"
+    print "Reconciling " + file
+    try:
+        calculate_diameter_from_file(file, d, t, l, log, False)
+    except IOError:
+        print "(File Not Found)"
 
 if __name__ == "__main__":
-    if not (4 >= len(sys.argv) >= 3):
-        print "Expected usage:"
-        print "\t Diameter.py start end [logfile]"
+    """Processes command line arguments"""
+    if len(sys.argv) <= 1:
+        print_help()
+    elif sys.argv[1] in ["-h", "-H", "--help", "--Help"]:
+        print_help()
+    elif sys.argv[1] == "test":
+        test()
+    elif sys.argv[1] == "calc":
+        calc()
+    elif sys.argv[1] == "rep":
+        rep_calc()
     else:
-        if len(sys.argv) == 4:
-            log = sys.argv[3]
-        else:
-            log = "Batch_Log"
-        start = int(sys.argv[1])
-        end = int(sys.argv[2])
-        print "Running " + str(end - start) + " sequential jobs on TreeLifeData dataset with DTL of 2,3,1"
-        rep_calc(start, end, 2, 3, 1, log)
-
-def c(file_name="example", D=0, T=0, L=0, test_log="TestLog", Debug=False):
-    """This method is identical to calculate_diameter_from_file, but with a shorter name that's easier to type"""
-    calculate_diameter_from_file(file_name, D, T, L, test_log, Debug)
-
-
-def t(file_name="example"):
-    """A function to call calculate_diameter with some testing values, because typing that name fully is slower overall
-     than writing this function (and this docstring)"""
-    calculate_diameter_from_file(file_name, 0, 0, 0, "TestLog", True)
-    print "Expected value: 9"
-
-
-def t2(file_name="example"):
-    calculate_diameter_from_file(file_name, 2, 3, 1, "TestLog", True)
-    print "Expected value: 7"
+        print_help()
