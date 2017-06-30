@@ -36,7 +36,7 @@ Reconcile is the more practically useful function. Since the data are implemente
 
 ### From the Command Line:
 
-This program has three flags: `-c`, `-r`, and `-t`. Exactly one of these must be present when the program is run for it o function.
+This program has three flags: `-c`, `-r`, and `-t`. Exactly one of these must be present when the program is run for it to function.
 
 #### Single Files
 
