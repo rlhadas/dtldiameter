@@ -18,7 +18,7 @@ This code then prints:
   * A Python dictionary with mapping nodes as keys and lists of event nodes that apply to those mapping nodes in a Maximum Parsimony Reconciliation as values, which has the format {(gene node, species node): [(event string, resulting mapping node 1, resulting mapping node 2, optionally frequency scoring), minimum cost], ...}. In this representation, the gene and species node values represent the nodes in the given newick trees that are being mapped to each other in the reconciliation; the event string is a character ('D', 'T', 'L', 'C', or 'S', representing duplication, transfer, loss, contemporary event, and speciation, respectively) representing the event that those mapped nodes undergo; the resulting mapping nodes are the mappings that are induced in the next 'leve' of the reconciliation graph as a result of the given event; lastly, the frequency scoring is the number of times the given event occurs in MPRs for the given data input - this is the extra information that is shown if the user chooses the `-s` option in the command line arguments. Lastly, the minimum cost is the minimum cost associated with this mapping in an MPR;
   * The number of Maximum Parsimony Reconciliations for the given data set and costs, as an integer
 
-Note each of these printed values is separated by a semicolon and two newlines, so the output is easily readable by a user (the newlines) but also contains characters that make the output easily separable, say, by a computer (the semicolons).
+Note each of these printed values is separated by a blank line, so the output is easily readable by a user.
 
 ### How to use this code in interactive mode:
 
