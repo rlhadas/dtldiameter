@@ -526,7 +526,6 @@ def clean_graph(dtl_recon_graph, gene_tree_root):
         # Get rid of all of the random numbers in the event list
         dtl_recon_graph[key] = filter(lambda e: not isinstance(e, (float, int)), dtl_recon_graph[key])
         # The events in the event dtl_recon_graph are stored as lists which cannot be used as dict keys. Let's fix that.
-
         # The below code is no longer necessary, as it is being filtered out in DTLReconGraph.py
 
         # for i in range(0, len(dtl_recon_graph[key])):

@@ -27,6 +27,7 @@
 import copy
 import newickFormatReader
 import Greedy
+import sys
 
 Infinity = float('inf')
 
@@ -705,3 +706,52 @@ def reconcile(fileName, D, T, L, useScores=False):
     host, paras, phi = newickFormatReader.getInput(fileName)
     graph, _, numRecon = DP(host, paras, phi, D, T, L, useScores)
     return host, paras, graph, numRecon
+
+
+# The remaining code handles the case of the user wanting to run reconcile from the command line
+
+def usage():
+    """
+    :return: none, but print the usage statement associated with reconcile
+    """
+    return ('usage: DTLReconGraph [-s] filename D_cost T_cost L_cost\n\t  filename: the name of the file that contains'
+          ' the data \n\t  D_cost, T_cost, L_cost: the costs associated with duplication, transfer, and loss events,'
+          ' respectively\n\t  -s: if added, this flag causes the code to use Scores, as explained in the code file')
+
+# If the user runs this from the command line
+if __name__ == "__main__":  # Only run if this has been called
+
+    if len(sys.argv) != 1:  # Would indicate an interactive mode invocation
+
+        # Save the arguments in a new list
+        arglst = sys.argv[:]
+
+        # Check user input - the length consideration handles the user not giving sufficient arguments
+        if len(arglst) not in [5, 6] or "-h" in arglst or "-H" in arglst or "--help" in arglst or "--Help" in arglst:
+            print(usage())
+        else:
+            try:
+
+                # Detect whether the -s flag was chosen and remove it from the arg list
+                if '-s' in sys.argv:
+                    arglst.remove('-s')
+                    result = reconcile(arglst[1], float(arglst[2]), float(arglst[3]), float(arglst[4]), True)
+                    for i in range(len(result)):
+                        if i != 3:
+                            print(str(result[i]) + '\n')
+                        else:
+                            print(str(result[i]))
+                else:
+                    result = reconcile(arglst[1], float(arglst[2]), float(arglst[3]), float(arglst[4]))
+                    for i in range(len(result)):
+                        if i != 3:
+                            print(str(result[i]) + '\n')
+                        else:
+                            print(str(result[i]))
+            except ValueError:
+                print(usage())
+            except IOError:
+                print('Bad filename')
+                print(usage())
+    else:  # Show the user usage anyway, in case they happen to just call the file name wanting usage info
+        print(usage())
