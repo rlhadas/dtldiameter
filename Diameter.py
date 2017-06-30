@@ -89,16 +89,28 @@
 
 # -1. DATA STRUCTURE QUICK REFERENCE:
 #
-#   DTL Reconciliation graph:
-#       { mapping_node: [event1, event2, ... eventn, number] ...}
+#   Pre clean_graph():
+#
+#      DTL Reconciliation graph:
+#           { mapping_node: [event1, event2, ... eventn, number] ...}
+#
+#      Event node:
+#           ('type', child_mapping_node1, child_mapping_node2, number)
+#
+#   Post clean_graph():
+#
+#       DTL Reconciliation graph (post clean_graph):
+#           { mapping_node: [event1, event2, ...] ...}
+#
+#       Event node (post clean_graph):
+#           ('type', child_mapping_node1, child_mapping_node2)
+#
 #
 #   Mapping node:
 #       ('gene_node','SPECIES_NODE')
 #   or in loss or contemporary event nodes:
 #       (None, None)
 #
-#   Event node:
-#       ('type', child_mapping_node1, child_mapping_node2, number)
 #
 #   (edge) trees:
 #       {('R','N'): ('R','N', ('N','C1'), ('N','C2')) ...}
@@ -619,7 +631,7 @@ def write_to_csv(csv_file, costs, filename, mpr_count, diameter, gene_node_count
                          DTLReconGraph_time_taken, diameter_time_taken, time.strftime("%c")])
 
 
-def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=False):
+def calculate_diameter_from_file(filename, D, T, L, csv_file=None, debug=False):
     """This function computes the diameter of space of MPRs in a DTL reconciliation problem,
      as measured by the symmetric set distance between the events of the two reconciliations of the pair
       that has the highest such difference.
@@ -692,6 +704,26 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=Fa
     # And we're done.
     return
 
+def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, debug=False):
+    match = re.match("([^#]*)(#+)([^#]*)", file_pattern)
+    if not match:
+        print "Filepath '" + file_pattern + "' not understood. Please enter the path to your files, with repeated hash marks" \
+                                       "(#'s) in place of sequential numbering."
+        return
+    fill = len(match.group(2))
+    if fill < len(str(end)) or fill < len(str(start)):
+        print "Starting or ending number is longer than '{1}' supports ({0} chars)!".format(fill, file_pattern)
+        return
+    print "Running {4} sequential jobs on files '{3}' with DTL of {0},{1},{2}".format(d, t, l, file_pattern, end - start)
+    for i in range(start, end):
+        cur_file = "{0}{1}{2}".format(match.group(1), str(i).zfill(fill), match.group(3))
+        print "Reconciling {0}".format(cur_file)
+        try:
+            calculate_diameter_from_file(cur_file, d, t, l, log, debug)
+        except IOError:
+            print "(File Not Found)"
+
+
 # ################### COMMAND LINE FUNCTIONS ###################
 
 def rep_calc():
@@ -699,14 +731,7 @@ def rep_calc():
     if not 8 <= len(sys.argv) <= 9:
         print_help()
         return
-    in_file = sys.argv[2]
-    match = re.match("([^#]*)(#+)([^#]*)", in_file)
-    if not match:
-        print "Filepath '"+in_file+"' not understood. Please enter the path to your files, with repeated hash marks" \
-              "(#'s) in place of sequential numbering."
-        return
-    fill = len(match.group(2))
-
+    file_pattern = sys.argv[2]
 
     start = int(sys.argv[3])
     end = int(sys.argv[4])
@@ -716,26 +741,18 @@ def rep_calc():
     if len(sys.argv) == 9:
         log = sys.argv[8]
     else:
-        log = "Log_File"
+        log = None
+    repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log)
 
-    if fill < len(str(end)) or fill < len(str(start)):
-        print "Starting or ending number is longer than '{1}' supports ({0} chars)!".format(fill,in_file)
-        return
-    print "Running {4} sequential jobs on files '{3}' with DTL of {0},{1},{2}".format(d,t,l,in_file, end - start)
-    for i in range(start, end):
-        cur_file = "{0}{1}{2}".format(match.group(1), str(i).zfill(fill), match.group(3))
-        print "Reconciling {0}".format(cur_file)
-        try:
-            calculate_diameter_from_file(cur_file, d, t, l, log, False)
-        except IOError:
-            print "(File Not Found)"
+
 
 def print_help():
     """Prints a usage string."""
     print "Usage:"
-    print "\ttest: runs a test function"
-    print "\tcalc file d t l [logfile]: calculates the diameter of a provided newick file"
-    print "\trep files start end d t l [logfile]: repeatedly runs calc over the numbered files in file" # TODO fix
+    print "Diameter test" \
+          "\tRuns a test function"
+    print "calc file d t l [logfile]: calculates the diameter of a provided newick file"
+    print "rep files start end d t l [logfile]: repeatedly runs calc over the numbered files in file" # TODO fix
 
 def test():
     """Command line function to run a short test."""

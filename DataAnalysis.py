@@ -2,6 +2,8 @@ import csv
 import numpy
 import matplotlib.pyplot as plt
 import os
+plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+plt.rc('text', usetex=True)
 
 def displayListValues(list, name):
     print name + ": "
@@ -77,95 +79,103 @@ def findExtrema(csv_file, zero_loss):
     if zero_loss:
         name = "Zero Loss "
 
-    fig, ax = plt.subplots(ncols=3, nrows=2)
+    plt.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
+    fig, ax = plt.subplots(ncols=3, nrows=1)
     fig.canvas.set_window_title("{2}{0} Diameters {1} Main".format(len(diameter_list), DTL, name))
-    norm_diameter_hist = ax[1][0]
-    norm_mpr_diameter = ax[1][2]
-    norm_diameter = ax[1][1]
-    diameter = ax[0][1]
-    diameter_hist = ax[0][0]
-    mpr_diameter = ax[0][2]
-    ax[1][0].set_ylabel("Normalized Diameter Counts")
-    ax[0][0].set_ylabel("Diameter Counts")
+    diameter = ax[1]
+    diameter_hist = ax[0]
+    mpr_diameter = ax[2]
+    ax[0].set_ylabel("Diameter")
     diameter.scatter(gene_count_list, diameter_list, c=color, s=size)
-    diameter.set_xlabel("Gene Tree Size")
-    diameter.set_title("Diameter Vs. Gene Count")
+    diameter.set_xlabel("Gene Tree Size\n"r"{\fontsize{30pt}{3em}\selectfont{}(b)}", linespacing=2.5, labelpad=20)
+    diameter.set_title("Diameter vs. Gene Count")
     diameter.set_ylim(-60, 1260)
     diameter.set_xlim(-100,2100)
     diameter.grid()
 
-    norm_diameter.scatter(gene_count_list, diameter_over_gene_list, c=color, s=size)
-    norm_diameter.set_xlabel("Gene Tree Size")
-    #norm_diameter.set_ylabel("Diameter (normalized to gene node count)")
-    norm_diameter.set_ylim(diameter_ylim_b, diameter_ylim_t)
-    norm_diameter.set_xlim(-100,2100)
-    norm_diameter.set_title("Normalized Diameter Vs. Gene Count")
-    norm_diameter.grid()
-
-    norm_diameter_hist.hist(diameter_over_gene_list, 100, orientation='horizontal')
-    #norm_diameter_hist.set_ylabel("Diameter (normalized to gene node count)")
-    norm_diameter_hist.set_xlabel("Number of Gene Families")
-    norm_diameter_hist.set_title("Normalized Diameter Counts")
-    norm_diameter_hist.set_ylim(diameter_ylim_b, diameter_ylim_t)
-    norm_diameter_hist.grid()
 
     diameter_hist.hist(diameter_list, 100, orientation='horizontal')
     # diameter_hist.set_ylabel("Diameter")
-    diameter_hist.set_xlabel("Number of Gene Families")
-    diameter_hist.set_title("Diameter Counts")
+    diameter_hist.set_xlabel("Number of Gene Families\n"r"{\fontsize{30pt}{3em}\selectfont{}(a)}", linespacing=2.5, labelpad=20)
+    diameter_hist.set_title("Diameter")
     diameter_hist.set_ylim(-60, 1260)
     diameter_hist.grid()
 
-    #ax[1][1].scatter(diameter_over_gene_list, diameter_timings, c=gene_count_list)
-    #ax[1][1].set_xlabel("Diameter (normalized to gene count)")
-    #ax[1][1].set_ylabel("Diameter Time (seconds)")
-    #ax[1][1].grid()
-    norm_mpr_diameter.scatter(mpr_list, diameter_over_gene_list, c=color, s=size)
-    norm_mpr_diameter.set_ylim(diameter_ylim_b, diameter_ylim_t)
-    norm_mpr_diameter.set_xlabel("MPR Count")
-    norm_mpr_diameter.set_title("Normalized Diameter Vs. MPR Count")
-    norm_mpr_diameter.grid()
-    norm_mpr_diameter.set_xscale('log')
-
     mpr_diameter.scatter(mpr_list, diameter_list, c=color, s=size)
     mpr_diameter.set_ylim(-60, 1260)
-    mpr_diameter.set_xlabel("MPR Count")
-    mpr_diameter.set_title("Diameter Vs. MPR Count")
+    mpr_diameter.set_xlabel("MPR Count\n"r"{\fontsize{30pt}{3em}\selectfont{}(c)}", linespacing=2.5, labelpad=20)
+    mpr_diameter.set_title("Diameter vs. MPR Count")
     mpr_diameter.grid()
     mpr_diameter.set_xscale('log')
 
+    fig.subplots_adjust(bottom=0.2)
+    #plt.show()
 
-
-    plt.show()
     fig, ax = plt.subplots(ncols=3, nrows=1)
-    fig.canvas.set_window_title("{2}{0} Diameters {1} Time Complexity".format(len(diameter_list), DTL, name))
+    fig.canvas.set_window_title("{2}{0} Diameters {1} Normalized".format(len(diameter_list), DTL, name))
+    norm_diameter_hist = ax[0]
+    norm_mpr_diameter = ax[2]
+    norm_diameter = ax[1]
+    ax[0].set_ylabel("Normalized Diameter")
+
+    norm_diameter.scatter(gene_count_list, diameter_over_gene_list, c=color, s=size)
+    norm_diameter.set_xlabel("Gene Tree Size\n"r"{\fontsize{30pt}{3em}\selectfont{}(b)}", linespacing=2.5, labelpad=20)
+    #norm_diameter.set_ylabel("Diameter (normalized to gene node count)")
+    norm_diameter.set_ylim(diameter_ylim_b, diameter_ylim_t)
+    norm_diameter.set_xlim(-100,2100)
+    norm_diameter.set_title("Normalized Diameter vs. Gene Tree Size")
+    norm_diameter.grid()
+
+    norm_diameter_hist.grid()
+    norm_diameter_hist.hist(diameter_over_gene_list, 100, orientation='horizontal')
+    #norm_diameter_hist.set_ylabel("Diameter (normalized to gene node count)")
+    norm_diameter_hist.set_xlabel("Number of Gene Families\n"r"{\fontsize{30pt}{3em}\selectfont{}(a)}", linespacing=2.5, labelpad=20)
+    norm_diameter_hist.set_title("Normalized Diameter Counts")
+    norm_diameter_hist.set_ylim(diameter_ylim_b, diameter_ylim_t)
+
+    norm_mpr_diameter.scatter(mpr_list, diameter_over_gene_list, c=color, s=size)
+    norm_mpr_diameter.set_ylim(diameter_ylim_b, diameter_ylim_t)
+    norm_mpr_diameter.set_xlabel("MPR Count\n"r"{\fontsize{30pt}{3em}\selectfont{}(c)}", linespacing=2.5, labelpad=20)
+    norm_mpr_diameter.set_title("Normalized Diameter vs. MPR Count")
+    norm_mpr_diameter.grid()
+    norm_mpr_diameter.set_xscale('log')
+
+    fig.subplots_adjust(bottom=0.2)
+
+
+
+    #plt.show()
+    #return
+    fig, ax = plt.subplots(ncols=3, nrows=1)
+    fig.canvas.set_window_title("{2}{0} Diameters {1} Running Time".format(len(diameter_list), DTL, name))
     DP_time = ax[0]
     diameter_time = ax[1]
     total_time = ax[2]
     diameter_time.scatter(gene_count_list, diameter_timings, c=diameter_over_gene_list, s=size)
-    diameter_time.set_xlabel("Gene Tree Size")
+    diameter_time.set_xlabel("Gene Tree Size\n"r"{\fontsize{30pt}{3em}\selectfont{}(b)}", linespacing=2.5, labelpad=20)
     diameter_time.set_ylabel("Diameter Time (seconds)")
-    diameter_time.set_title("Diameter Time Complexity")
+    diameter_time.set_title("Diameter Running Time")
     diameter_time.grid()
     diameter_time.set_ylim(0.01, (10**5))
     diameter_time.set_yscale('log')
     diameter_time.set_xscale('log')
     DP_time.scatter(gene_count_list, DP_timings, c=diameter_over_gene_list, s=size)
-    DP_time.set_xlabel("Gene Tree Size")
+    DP_time.set_xlabel("Gene Tree Size\n"r"{\fontsize{30pt}{3em}\selectfont{}(a)}", linespacing=2.5, labelpad=20)
     DP_time.set_ylabel("DP Time (seconds)")
-    DP_time.set_title("DP Time Complexity")
+    DP_time.set_title("DP Running Time")
     DP_time.grid()
     DP_time.set_yscale('log')
     DP_time.set_xscale('log')
     total_time.scatter(gene_count_list, total_timings, c=diameter_over_gene_list, s=size)
-    total_time.set_xlabel("Gene Tree Size")
+    total_time.set_xlabel("Gene Tree Size\n"r"{\fontsize{30pt}{3em}\selectfont{}(a)}", linespacing=2.5, labelpad=20)
     total_time.set_ylabel("Total Time (seconds)")
-    total_time.set_title("Total Time Complexity")
+    total_time.set_title("Total Running Time")
     total_time.grid()
     total_time.set_ylim(0.01, (10**5))
     total_time.set_yscale('log')
     total_time.set_xscale('log')
 
+    fig.subplots_adjust(bottom=0.2)
     plt.show()
 
 
@@ -181,7 +191,7 @@ def findSpecific(col, value, csv_file="COG_Pilot_Log_02.csv", tol=0):
                     print row
 
 def t():
-    findExtrema("COG_Pilot_Log_03.csv",False)
+    #findExtrema("COG_Pilot_Log_03.csv",False)
     findExtrema("ZL_COG_Pilot_Log_03.csv", True)
 
 

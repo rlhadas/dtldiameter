@@ -5,7 +5,7 @@ One could run this file in interactive mode and test any functions individually;
 
 ## __**How to use Diameter.py**__
 
-### From the command line:
+### From the Command Line:
 
 #### Single Files
 
@@ -32,4 +32,22 @@ The program will skip over the non-existant `tree3.newick`.
 
 If you like looking at pretty tables, use the ```python Diameter.py test``` command. It will print out some pretty tables.
 
-### Via interactive mode:
+### Via Interactive Mode:
+
+#### Single Files
+
+To calculate the diameter for a single file in interactive mode, call the following function:
+>calculate_diameter_from_file(filename, D, T, L, csv_file=None, debug=False)
+
+The arguments in this function are similar to the command line option `calc`. `filename` is the path to the file that will be reconciled and the DTL Diameter calculated for. `D`, `T`, and `L` are the (integer) event costs, and `csv_file` is the a string containing path to the csv file used for logging (use `None` for no logging).
+
+`debug`, when set to true, will make Diameter print out the dynamic programming tables it uses to find the solution (but only the ones that are less than 30x30 size).
+
+#### Many Files
+
+To calculate a set of numbered files, use this function:
+> repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, debug=False)
+
+Where `file_pattern` is the pattern used to find the right files (as described in the command line section), `start` is the starting file number, `end` is the exclusive ending file number, `d`, `t`, and `l` are the event costs, and `log` is the csv file to log to (or `None` if no logfile is needed, although that is not recommended).
+
+`debug` works the same as in `calculate_diameter_from_file`, but that is *very* not recommended.
