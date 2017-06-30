@@ -1,6 +1,8 @@
 # dtldiameter
 
-### **How to use this code from the command line:**
+## How to use DTLReconGraph.py
+
+### How to use this code from the command line:
 
 After typing `python DTLReconGraph.py`, one should enter the values for:
 
@@ -18,11 +20,11 @@ This code then prints:
 
 Note each of these printed values is separated by a semicolon and two newlines, so the output is easily readable by a user (the newlines) but also contains characters that make the output easily separable, say, by a computer (the semicolons).
 
-### **How to use this code in interactive mode:**
+### How to use this code in interactive mode:
 
 One should simply type `python -i DTLReconGraph.py` to access the contents of the code. From there, all major and helper functions will be available, however the two most important are DP and reconcile. DP is the workhorse of the code - it utilizes several helper functions to actually perform computations and implement the algorithm given in the technical report titled "HMC CS Technical Report CS-2011-1: Faster Dynamic Programming Algorithms for the Cophylogeny Reconstruction Problem". For more details on the algorithm itself, see that report and/or the comments/docstrings included in the file. Given host and parsite trees, tip mappings, costs for duplication, transfer, and loss, and a boolean value indicating whether the user wishes to include frequency scores in the output, DP implements this algorithm and returns the host and parasite trees in dictionary form, the DTL maximum parsimony reconciliation graph, and the number of reconciliations for the given trees and tip mappings (see the outputs discussed in the section on using this code from the command line for more detail on the output format). reconcile, however, is the more practically useful function. Since the data are implemented as newick trees and mappings, reconcile utilizes a separate module that both handles getting the data from a separate file and reformats the inputs to work nicely with DP. Reconcile reformats the species and gene trees to match the output format given in the section on running from the command line, and prints out these trees along with the reconciliation graph (again, in the format discussed above) and the number of Maximum Parsimony Reconciliations as an integer. Although one may play with any/all functions included in this file and those on which it depends, DP and reconcile are the most important functions.
 
-## __**How to use Diameter.py**__
+## How to use Diameter.py
 
 ### From the Command Line:
 
@@ -58,7 +60,7 @@ If you like looking at pretty tables, use the ```python Diameter.py test``` comm
 To calculate the diameter for a single file in interactive mode, call the following function:
 >calculate_diameter_from_file(filename, D, T, L, csv_file=None, debug=False)
 
-The arguments in this function are similar to the command line option `calc`. `filename` is the path to the file that will be reconciled and the DTL Diameter calculated for. `D`, `T`, and `L` are the (integer) event costs, and `csv_file` is the a string containing path to the csv file used for logging (use `None` for no logging).
+The arguments in this function are similar to the command line option `calc`. `filename` is the path to the file that will be reconciled by `DTLReconGraph` and the DTL Diameter calculated for. `D`, `T`, and `L` are the (integer) event costs, and `csv_file` is the a string containing path to the csv file used for logging (use `None` for no logging).
 
 `debug`, when set to true, will make Diameter print out the dynamic programming tables it uses to find the solution (but only the ones that are less than 30x30 size).
 
