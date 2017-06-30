@@ -36,6 +36,8 @@ Reconcile is the more practically useful function. Since the data are implemente
 
 ### From the Command Line:
 
+This program has three flags: `-c`, `-r`, and `-t`. Exactly one of these must be present when the program is run for it o function.
+
 #### Single Files
 
 To calculate a single diameter on the command line, use the following command:
@@ -53,7 +55,7 @@ For repeated diameter computations, use the following command:
 This command works the same as the `-c` flag, except that `pattern` is a file path pattern where any `#`'s will be replaced with a number, and all files in the range between the number specifed in the `start` and `end` command will have the diameter calculated.
 
 For example, to calculate the diameters for files `tree1.newick`, `tree2.newick`, and `tree4.newick` (all located in a folder called `data`) with DTL costs of 2, 3, and 4, use this command:
->python Diameter.py rep "data/tree#.newick" 1 5 2 3 4
+>python Diameter.py `-r` "data/tree#.newick" 1 5 2 3 4
 
 The program will skip over the non-existent `tree3.newick`.
 
