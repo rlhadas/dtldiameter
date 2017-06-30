@@ -735,7 +735,7 @@ def print_help():
     print "Usage:"
     print "\ttest: runs a test function"
     print "\tcalc file d t l [logfile]: calculates the diameter of a provided newick file"
-    print "\trep file start end d t l [logfile]: repeatedly runs calc over the numbered files in file" # TODO fix
+    print "\trep files start end d t l [logfile]: repeatedly runs calc over the numbered files in file" # TODO fix
 
 def test():
     """Command line function to run a short test."""
