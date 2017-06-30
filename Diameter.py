@@ -617,6 +617,16 @@ def diameter_algorithm(species_tree, vertex_gene_tree, gene_tree_root, dtl_recon
 
 def write_to_csv(csv_file, costs, filename, mpr_count, diameter, gene_node_count,
                  DTLReconGraph_time_taken, diameter_time_taken):
+    """Takes a large amount of information about a diameter solution and appends it as one row to the provided csv file.
+    :param csv_file:                    The csv file to write to
+    :param costs:                       A string representing the costs used to calculate the DTL recon graph
+    :param filename:                    The name of the file that was reconciled
+    :param mpr_count:                   The number of MPRS found
+    :param diameter:                    The diameter that was found
+    :param gene_node_count:             The total number of nodes in the gene tree
+    :param DTLReconGraph_time_taken:    The amount of time that DTLReconGraph took to run
+    :param diameter_time_taken:         The amount of time that Diameter took to run
+    """
     file_exists = os.path.isfile(csv_file)
 
     with open(csv_file, 'a') as output_file:
@@ -647,9 +657,9 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file=None, debug=False):
     # These statements check to make sure that all arguments were entered correctly.
     assert isinstance(csv_file, (str, unicode)) or csv_file is None
     assert isinstance(filename, (str, unicode))
-    assert isinstance(D, int)
-    assert isinstance(T, int)
-    assert isinstance(L, int)
+    assert isinstance(D, (int, float))
+    assert isinstance(T, (int, float))
+    assert isinstance(L, (int, float))
     assert isinstance(debug, bool)
 
     # Record the time that DTLReconGraph starts
@@ -704,7 +714,19 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file=None, debug=False):
     # And we're done.
     return
 
+
 def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, debug=False):
+    """Iterates over a lot of input files and finds the diameter of all of them.
+    :param file_pattern: A string contains the name of the files to be used, with the counting number replaced with #'s
+    :param start:
+    :param end:
+    :param d:           Duplication event cost
+    :param t:           Transfer event cost
+    :param l:           Loss event cost
+    :param log:         csv file to log results to
+    :param debug:       Whether to print out every DP table made (not recommended)
+    :return:
+    """
     match = re.match("([^#]*)(#+)([^#]*)", file_pattern)
     if not match:
         print "Filepath '" + file_pattern + "' not understood. Please enter the path to your files, with repeated hash marks" \
@@ -735,9 +757,9 @@ def rep_calc():
 
     start = int(sys.argv[3])
     end = int(sys.argv[4])
-    d = int(sys.argv[5])
-    t = int(sys.argv[6])
-    l = int(sys.argv[7])
+    d = float(sys.argv[5])
+    t = float(sys.argv[6])
+    l = float(sys.argv[7])
     if len(sys.argv) == 9:
         log = sys.argv[8]
     else:
@@ -748,11 +770,24 @@ def rep_calc():
 
 def print_help():
     """Prints a usage string."""
-    print "Usage:"
-    print "Diameter test" \
+    print "Usage: (select one of the sub-comands below)"
+    print "\nDiameter test\n" \
           "\tRuns a test function"
-    print "calc file d t l [logfile]: calculates the diameter of a provided newick file"
-    print "rep files start end d t l [logfile]: repeatedly runs calc over the numbered files in file" # TODO fix
+    print "\nDiameter calc file d t l [logfile]\n" \
+          "\tCalculates the diameter of a provided file\n" \
+          "\t\tfile: The path to the file to reconcile (must be a file containing newick trees for the gene and species" \
+          "trees and the tip mapping between them\n" \
+          "\t\td, t, l: The event costs for duplication, transfers, and losses respectively\n" \
+          "\t\t[logfile]: Optionally log results to this .csv file"
+    print "\nDiameter rep pattern start end d t l [logfile]\n" \
+          "\tRepeatedly runs calc over many consecutively-numbered files\n" \
+          "\t\tpattern: The path and filename that all files you wish to run share, with the consecutive numbering" \
+          " replaced with # symbols\n" \
+          "\t\tstart: The number of the first file to calculate\n" \
+          "\t\tend: The number of the last file to calculate\n" \
+          "\t\td, t, l: The event costs for duplication, transfers, and losses respectively\n" \
+          "\t\t[logfile]: Optionally log results to this .csv file"
+
 
 def test():
     """Command line function to run a short test."""
@@ -764,9 +799,9 @@ def calc():
         print_help()
         return
     file = sys.argv[2]
-    d = int(sys.argv[3])
-    t = int(sys.argv[4])
-    l = int(sys.argv[5])
+    d = float(sys.argv[3])
+    t = float(sys.argv[4])
+    l = float(sys.argv[5])
     if len(sys.argv) == 7:
         log = sys.argv[6]
     else:
