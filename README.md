@@ -39,7 +39,7 @@ Reconcile is the more practically useful function. Since the data are implemente
 #### Single Files
 
 To calculate a single diameter on the command line, use the following command:
-> python Diameter.py calc file d t l [logfile]
+> python Diameter.py -c file d t l [logfile]
 
 In this command, `file` is the relative path to the newick file you wish to compute the diameter of, `d`, `t`, and `l` are the event costs, and `[logfile]` is the path to the csv file you wish to log to (do not include the `.csv` extension; it will be created for you). If logfile is not specified, no csv will be created.
 
@@ -48,9 +48,9 @@ This argument will calculate the diameter twice, once counting losses as part of
 #### Many Files
 
 For repeated diameter computations, use the following command:
-> python Diameter.py rep pattern start end d t l [logfile]
+> python Diameter.py -r pattern start end d t l [logfile]
 
-This command works the same as the `calc` command, except that `pattern` is a file path pattern where any `#`'s will be replaced with a number, and all files in the range between the number specifed in the `start` and `end` command will have the diameter calculated.
+This command works the same as the `-c` flag, except that `pattern` is a file path pattern where any `#`'s will be replaced with a number, and all files in the range between the number specifed in the `start` and `end` command will have the diameter calculated.
 
 For example, to calculate the diameters for files `tree1.newick`, `tree2.newick`, and `tree4.newick` (all located in a folder called `data`) with DTL costs of 2, 3, and 4, use this command:
 >python Diameter.py rep "data/tree#.newick" 1 5 2 3 4
@@ -59,7 +59,7 @@ The program will skip over the non-existent `tree3.newick`.
 
 #### Misc
 
-If you like looking at pretty tables, use the ```python Diameter.py test``` command. It will print out some pretty tables.
+If you like looking at pretty tables, use the ```python Diameter.py -t``` command. It will print out some pretty tables.
 
 ### Via Interactive Mode:
 

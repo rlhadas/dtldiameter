@@ -771,15 +771,15 @@ def rep_calc():
 def print_help():
     """Prints a usage string."""
     print "Usage: (select one of the sub-comands below)"
-    print "\nDiameter test\n" \
+    print "\nDiameter -t\n" \
           "\tRuns a test function"
-    print "\nDiameter calc file d t l [logfile]\n" \
+    print "\nDiameter -c file d t l [logfile]\n" \
           "\tCalculates the diameter of a provided file\n" \
           "\t\tfile: The path to the file to reconcile (must be a file containing newick trees for the gene and species" \
           "trees and the tip mapping between them\n" \
           "\t\td, t, l: The event costs for duplication, transfers, and losses respectively\n" \
           "\t\t[logfile]: Optionally log results to this .csv file"
-    print "\nDiameter rep pattern start end d t l [logfile]\n" \
+    print "\nDiameter -r pattern start end d t l [logfile]\n" \
           "\tRepeatedly runs calc over many consecutively-numbered files\n" \
           "\t\tpattern: The path and filename that all files you wish to run share, with the consecutive numbering" \
           " replaced with # symbols\n" \
@@ -818,11 +818,11 @@ if __name__ == "__main__":
         print_help()
     elif sys.argv[1] in ["-h", "-H", "--help", "--Help"]:
         print_help()
-    elif sys.argv[1] == "test":
+    elif sys.argv[1] == "-t":
         test()
-    elif sys.argv[1] == "calc":
+    elif sys.argv[1] == "-c":
         calc()
-    elif sys.argv[1] == "rep":
+    elif sys.argv[1] == "-r":
         rep_calc()
     else:
         print_help()
