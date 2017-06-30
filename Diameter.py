@@ -127,8 +127,12 @@ import DTLReconGraph
 import time
 import csv
 import os.path
-import sys
 from collections import OrderedDict
+
+# Used for command line arguments:
+
+import sys
+import re
 
 
 def reformat_tree(tree, root):
@@ -692,23 +696,37 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=Fa
 
 def rep_calc():
     """Command line function to repeatedly run through numbered files located at TreeLifeData/COG####.newick"""
-    if not 7 <= len(sys.argv) <= 8:
+    if not 8 <= len(sys.argv) <= 9:
         print_help()
         return
-    start = int(sys.argv[2])
-    end = int(sys.argv[3])
-    d = int(sys.argv[4])
-    t = int(sys.argv[5])
-    l = int(sys.argv[6])
-    if len(sys.argv) == 8:
-        log = sys.argv[7]
+    in_file = sys.argv[2]
+    match = re.match("([^#]*)(#+)([^#]*)", in_file)
+    if not match:
+        print "Filepath '"+in_file+"' not understood. Please enter the path to your files, with repeated hash marks" \
+              "(#'s) in place of sequential numbering."
+        return
+    fill = len(match.group(2))
+
+
+    start = int(sys.argv[3])
+    end = int(sys.argv[4])
+    d = int(sys.argv[5])
+    t = int(sys.argv[6])
+    l = int(sys.argv[7])
+    if len(sys.argv) == 9:
+        log = sys.argv[8]
     else:
         log = "Log_File"
-    print "Running " + str(end - start) + " sequential jobs on TreeLifeData dataset with DTL of {0},{1},{2}".format(d,t,l)
+
+    if fill < len(str(end)) or fill < len(str(start)):
+        print "Starting or ending number is longer than '{1}' supports ({0} chars)!".format(fill,in_file)
+        return
+    print "Running {4} sequential jobs on files '{3}' with DTL of {0},{1},{2}".format(d,t,l,in_file, end - start)
     for i in range(start, end):
-        print "Reconciling COG" + str(i).zfill(4)
+        cur_file = "{0}{1}{2}".format(match.group(1), str(i).zfill(fill), match.group(3))
+        print "Reconciling {0}".format(cur_file)
         try:
-            calculate_diameter_from_file("TreeLifeData/COG{0}.newick".format(str(i).zfill(4)), d, t, l, log, False)
+            calculate_diameter_from_file(cur_file, d, t, l, log, False)
         except IOError:
             print "(File Not Found)"
 
@@ -717,7 +735,7 @@ def print_help():
     print "Usage:"
     print "\ttest: runs a test function"
     print "\tcalc file d t l [logfile]: calculates the diameter of a provided newick file"
-    print "\trep start end d t l [logfile]: repeatedly runs calc over the numbered COG files located in TreeLifeData"
+    print "\trep file start end d t l [logfile]: repeatedly runs calc over the numbered files in file" # TODO fix
 
 def test():
     """Command line function to run a short test."""
