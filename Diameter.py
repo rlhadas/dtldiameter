@@ -770,7 +770,7 @@ def rep_calc():
 
 def print_help():
     """Prints a usage string."""
-    print "Usage: (select one of the sub-comands below)"
+    print "Usage: This program has three flags, and exactly one of these must be present when the program is run for it to function:"
     print "\nDiameter -t\n" \
           "\tRuns a test function"
     print "\nDiameter -c file d t l [logfile]\n" \
