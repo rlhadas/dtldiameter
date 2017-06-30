@@ -8,12 +8,16 @@
 #   algorithm more thoroughly than can be expressed in source code comments. The paper title is "Computing the Diameter
 #   of the Space of Maximum Parsimony Reconciliations in the Duplication-Transfer-Loss Model". #TODO add more info
 #
-#   Note that in this documentation and in that paper, there is a notion of the "group" of a node
+#       Note that in this documentation and in that paper, there is a notion of the "group" of a gene node that contains
+#   every mapping and event node relating to that gene. While this is a useful abstraction to think about the problem,
+#   it doesn't seem to be required in the code. So when the documentation of this program refers to the "group" of a
+#   node, sometimes notated as Group(u), be aware that it does not directly correspond to any data structure in the
+#   program.
 
 # 1. ON TREE REPRESENTATION FORMATS:
 #
 #       This file deals with trees in two formats: Edge-based formats, and vertex-based formats. The edged-based
-#   trees are what are output from DP.py (which returns them straight from newickFormatReader), and are what this
+#   trees are what are output from DTLReconGraph.py (which returns them straight from newickFormatReader), and are what this
 #   file uses to represent the species tree. For readability and convenience purposes, the gene tree is converted to
 #   a vertex tree in the reformat_tree() method.
 #
@@ -33,11 +37,11 @@
 
 # 2. ON THE NAMING CONVENTION OF THE TWO TREES:
 #
-#       This file calls the two trees the gene tree and the species tree. Other programs, like DP.py, have different
+#       This file calls the two trees the gene tree and the species tree. Other programs, like DTLReconGraph.py, have different
 #   naming conventions (such as "host" for the species tree and "parasite" for the gene tree) because they were coded
 #   under different assumptions as to what the two trees represent. Let it be understood that these names are
 #   synonymous, and that references to "hTop" or "pTop" refer to the name of the handle of the species and
-#   gene trees that DP outputs.
+#   gene trees that DTLReconGraph outputs.
 
 
 # 3. ON THE USAGE OF PATHS AND THE PATH REPRESENTATION FORMAT:
@@ -76,32 +80,44 @@
 #       There are several helper dictionaries which pertain to exit events. Their names should be pretty self
 #   explanatory, but they are described more fully here.
 #
-#   exit_events_by_mapping, is keyed by mapping node, and every entry corresponds to a list containing every exit event
-# that is a child of that mapping node
-#   exit_events_by_gene, is keyed by gene node, and where entry corresponds to a list containing every exit event in
-# the group of that gene node
-#   exit_mappings_by_gene, is keyed by gene node, and where  entry corresponds to a list containing every mapping node
-# in group of that gene node, on the condition that that mapping node has an exit event
+#       exit_events_by_mapping is keyed by mapping node. Each entry contains a list of every exit event
+#   that is a child of that mapping node
+#       exit_events_by_gene is keyed by gene node. Each entry contains a list of every exit event in
+#   the group of that gene node
+#       exit_mappings_by_gene is keyed by gene node. Each entry contains a list of every mapping node
+#   in group of that gene node, on the condition that that mapping node has an exit event
 
 # -1. DATA STRUCTURE QUICK REFERENCE:
 #
-#   DTL Reconciliation graph:
-#       { mapping_node: [event1, event2, ... eventn, number] ...}
+#   Pre clean_graph():
+#
+#      DTL Reconciliation graph:
+#           { mapping_node: [event1, event2, ... eventn, number] ...}
+#
+#      Event node:
+#           ('type', child_mapping_node1, child_mapping_node2, number)
+#
+#   Post clean_graph():
+#
+#       DTL Reconciliation graph (post clean_graph):
+#           { mapping_node: [event1, event2, ...] ...}
+#
+#       Event node (post clean_graph):
+#           ('type', child_mapping_node1, child_mapping_node2)
+#
 #
 #   Mapping node:
 #       ('gene_node','SPECIES_NODE')
 #   or in loss or contemporary event nodes:
 #       (None, None)
 #
-#   Event node:
-#       ('type', child_mapping_node1, child_mapping_node2, number)
 #
-#   (edge) tree:
+#   (edge) trees:
 #       {('R','N'): ('R','N', ('N','C1'), ('N','C2')) ...}
 #       aka:
 #       {root_edge: (root_edge[0], root_edge[1], child1_edge, child2_edge) ...}
 #
-#   vertex_tree:
+#   vertex_trees:
 #       {'N':('C1','C2') ...}
 #
 #   path:
@@ -123,8 +139,12 @@ import DTLReconGraph
 import time
 import csv
 import os.path
-import sys
 from collections import OrderedDict
+
+# Used for command line arguments:
+
+import sys
+import re
 
 
 def reformat_tree(tree, root):
@@ -309,7 +329,7 @@ def compute_trivial_exit_event_table(u, exit_event_table):
     """This function computes and stores the score of the exit event on a leaf node 'u' of the gene tree.
     As this event will always be a C event that is shared by all nodes, this value will always be 0.
     :param u:                   The gene node for which we want to compute the table.
-    :param exit_event_table:    The dp table we will compute """
+    :param exit_event_table:    The DTLReconGraph table we will compute """
     exit_event_table[u] = {}
     exit_event_table[u][('C', (None, None), (None, None))] = {}
     exit_event_table[u][('C', (None, None), (None, None))][('C', (None, None), (None, None))] = 0
@@ -318,9 +338,10 @@ def compute_trivial_exit_event_table(u, exit_event_table):
 def compute_exit_event_table(u, exit_event_table, enter_mapping_table, exit_events_by_gene):
     """This function computes and stores the score of the exit event on a non-leaf node 'u' of the gene tree.
     :param u:                       The gene node for which we want to compute the table.
-    :param exit_event_table:        The dp table we will compute
-    :param enter_mapping_table:     A dp table that we will use
-    :param exit_events_by_gene:
+    :param exit_event_table:        The DTLReconGraph table we will compute
+    :param enter_mapping_table:     A DTLReconGraph table that we will use to make exit_event_table
+    :param exit_events_by_gene:     The exit_events_by_gene dict, which we use to iterate over u's exit events
+    :return:                        Nothing, but it modifies exit_event_table.
     """
 
     # Initialize u's exit_event_table entry
@@ -355,22 +376,20 @@ def compute_exit_event_table(u, exit_event_table, enter_mapping_table, exit_even
 
 def compute_exit_mapping_table(u, exit_mapping_table, exit_event_table, exit_mappings_by_gene, exit_events_by_mapping):
     """This function computes and stores the maximum possible score of the exit from gene node u
-    :param u:
-    :param exit_mapping_table:
-    :param exit_event_table:
-    :param exit_mappings_by_gene:
-    :param exit_events_by_mapping:
-    """
-
-    # u_mapping_nodes contains all nodes in Group(u) that have exit events
-    u_mapping_nodes = exit_mappings_by_gene[u]
+    :param u:                       The gene node to build compute_exit_mapping_table for
+    :param exit_mapping_table:      A reference to the DTLReconGraph table that we are building
+    :param exit_event_table:        The exit event DTLReconGraph table, which we use to compute the exit_mapping_table
+    :param exit_mappings_by_gene:   The exit_mappings_by_gene dict, which we use to iterate over u's exit mapping nodes
+    :param exit_events_by_mapping:  The exit_events_by_mapping dict, which we use to iterate the events in said mapping
+                                    nodes
+    :return:                        Nothing, but it modifies exit_mapping_table."""
 
     # Initialize u's exit_mapping_table entry
     exit_mapping_table[u] = {}
 
-    for uA in u_mapping_nodes:
+    for uA in exit_mappings_by_gene[u]:
         exit_mapping_table[u][uA] = {}
-        for uB in u_mapping_nodes:
+        for uB in exit_mappings_by_gene[u]:
             max_value = 0
             for E1 in exit_events_by_mapping[uA]:
                 for E2 in exit_events_by_mapping[uB]:
@@ -378,54 +397,49 @@ def compute_exit_mapping_table(u, exit_mapping_table, exit_event_table, exit_map
             exit_mapping_table[u][uA][uB] = max_value
 
 
-def build_loss_reachable(graph, root_mapping_node):
-    """A recursive function to create the list of the mapping nodes that can be reached through loss events.
-    (The base case is when you can't get to a loss node from a mapping node)
-    :param graph:
-    :param root_mapping_node:
-    :return: """
+def build_loss_reachable(dtl_recon_graph, root_mapping_node):
+    """A recursive function to create the list of the mapping nodes that can be reached through loss events from a
+    mapping node. (The base case is when the root_mapping_node has no loss children)
+    :param dtl_recon_graph:     The DTL reconciliation graph
+    :param root_mapping_node:   The mapping node that we are searching from
+    :return:                    A list of mapping nodes that we can reach from here"""
+
+    # Grab all loss events
+    loss_events = filter(lambda e: e[0] == 'L', dtl_recon_graph[root_mapping_node])
+    # For explanation of the above event structure, see section -1.
+
     loss_reachable = []
-
-    loss_events = filter(lambda e: e[0] == 'L', graph[root_mapping_node])  # Grab all loss events
-    # For explanation of this, see the data structure quick reference.
-
     for event in loss_events:
-        loss_reachable += build_loss_reachable(graph, event[1])
+        loss_reachable += build_loss_reachable(dtl_recon_graph, event[1])
     return loss_reachable + [root_mapping_node]
 
 
-def compute_enter_mapping_table(u, enter_mapping_table, exit_mapping_table, mapping_node_list, graph, ssd):
+def compute_enter_mapping_table(u, enter_mapping_table, exit_mapping_table, mapping_node_list, dtl_recon_graph, ssd):
     """This function computes the maximum possible score of each pair of mapping nodes for gene node u, and stores each
     one into the enter_mapping_table table for u.
-    :param u:
-    :param enter_mapping_table:
-    :param exit_mapping_table:
-    :param mapping_node_list:
-    :param graph:
-    :param ssd: """
+    :param u:                   The gene node to compute the enter_mapping_table for
+    :param enter_mapping_table: The DTLReconGraph that we will compute
+    :param exit_mapping_table:  The exit mapping DTLReconGraph table, which we will use to compute the enter_mapping_table
+    :param mapping_node_list:   The list of all mapping nodes in the DTL graph, which we need to iterate over
+    :param dtl_recon_graph:     The DTL reconciliation graph
+    :param ssd:                 The symmetric set difference table we pre-computed
+    :return:                    Nothing, but it modifies enter_mapping_table"""
 
-    # TODO: look over this, this is group u, think of removing from fucntion
-    u_mapping_nodes = []  # Make a new list that has only the mapping nodes that contain u
-    for node in mapping_node_list:
-        if node[0] == u:
-            u_mapping_nodes.append(node)
+    # I lied in section 0 of the header, u_mapping_nodes is basically group(u). However, it is local to this function,
+    # and contains only mapping nodes.
+    u_mapping_nodes = filter(lambda n: n[0] == u, mapping_node_list)
 
-    loss_reachable = {}  # Every mapping node (in u)'s list of mapping nodes that can be reached through loss events
+    # Every mapping node (in u)'s list of mapping nodes that can be reached through loss events
+    loss_reachable = {}
 
     for mapping_node in u_mapping_nodes:
-        loss_reachable[mapping_node] = build_loss_reachable(graph, mapping_node)
+        loss_reachable[mapping_node] = build_loss_reachable(dtl_recon_graph, mapping_node)
 
     enter_mapping_table[u] = {}
     for uA in u_mapping_nodes:
         enter_mapping_table[u][uA] = {}
         for uB in u_mapping_nodes:
             max_score = 0
-
-            # temp_debug_scores = {}  # this table displays the values considered for max_score
-            # for map1 in frozenset(loss_reachable[uA] + loss_reachable[uB]):
-            #    temp_debug_scores[map1] = {}
-            #    for map2 in frozenset(loss_reachable[uA] + loss_reachable[uB]):
-            #        temp_debug_scores[map1][map2] = "N/A"
 
             for uC in loss_reachable[uA]:
                 #  Sometimes, we consider values for uC and uD that do not have entries in exit_mapping_table[u].
@@ -437,12 +451,12 @@ def compute_enter_mapping_table(u, enter_mapping_table, exit_mapping_table, mapp
 
                     if not uD in exit_mapping_table[u][uC]:
                         break
+                    # Find out how many losses these path pairs have, and score appropriately
                     score_loss = ssd[(uA[1], uC[1])][(uB[1], uD[1])]
+                    # Find out the rest of scores from exit_mapping_table for these paths
                     score_rest = exit_mapping_table[u][uC][uD]
-                    # temp_debug_scores[uC][uD] = score_rest + score_loss
+                    # See if this score is better than our previous best
                     max_score = max(max_score, (score_loss + score_rest))
-
-            # print_table_nicely(temp_debug_scores,"","{4}:tmp {0}{1}:{2}{3}".format(uA[0], uA[1], uB[0], uB[1],u))
 
             enter_mapping_table[u][uA][uB] = max_score
 
@@ -454,11 +468,13 @@ def event_to_string(event):
 
 def print_table_nicely(table, deliminator, name="\t", type="map"):
     """Takes a table (a 2D dict keyed with tuples) and prints a nicely formatted table. Used for debugging and wall art.
-    :param table:
-    :param deliminator:
-    :param name:
-    :param type:
-    :return:
+    :param table:       The table we wish to print nicely. It is assumed that the rows and columns are exactly the same,
+                        and that both the keys and values will fit within 7 characters (room for one tab space)
+                        It is also assumed that the keys are tuples of some kind.
+    :param deliminator: What string to put in between the elements of the tuples
+    :param name:        What this table should be named (upper left)
+    :param type:        A string corresponding to the type of data. Valid values are 'event', 'path', and 'map'.
+    :return:            Nothing, but prints to the screen a lot.
     """
 
     print ""
@@ -501,19 +517,22 @@ def print_table_nicely(table, deliminator, name="\t", type="map"):
 
 
 def clean_graph(dtl_recon_graph, gene_tree_root):
-    """Cleans up the graph created by DP.py by turning removing scores from events and event lists, and removes any
+    """Cleans up the graph created by DTLReconGraph.py by turning removing scores from events and event lists, and removes any
      loss events on the root gene node.
-     :param dtl_recon_graph:
-     :param gene_tree_root: """
+     :param dtl_recon_graph:    The DTL reconciliation graph that we wish to clean
+     :param gene_tree_root:     The root of the gene tree of said graph
+     :return:                   Nothing, but modifies dtl_recon_graph"""
     for key in dtl_recon_graph:
         # Get rid of all of the random numbers in the event list
         dtl_recon_graph[key] = filter(lambda e: not isinstance(e, (float, int)), dtl_recon_graph[key])
         # The events in the event dtl_recon_graph are stored as lists which cannot be used as dict keys. Let's fix that.
-        #for i in range(0, len(dtl_recon_graph[key])):
-            # Get rid of the last value, as it is a number we don't need
-            #dtl_recon_graph[key][i] = dtl_recon_graph[key][i][:-1]
+        # The below code is no longer necessary, as it is being filtered out in DTLReconGraph.py
 
-        # DP should be filtering the loss events on the root node out, so we don't need to worry about it
+        # for i in range(0, len(dtl_recon_graph[key])):
+            # Get rid of the last value, as it is a number we don't need
+            # dtl_recon_graph[key][i] = dtl_recon_graph[key][i][:-1]
+
+        # DTLReconGraph should be filtering the loss events on the root node out, so we don't need to worry about it
         # if key[0] == gene_tree_root:
             # dtl_recon_graph[key] = filter(lambda e: not e[0] == 'L', dtl_recon_graph[key])
 
@@ -523,15 +542,13 @@ def diameter_algorithm(species_tree, vertex_gene_tree, gene_tree_root, dtl_recon
     """This function is the one that actually computes the diameter. It initializes many dictionaries, computes the
     symmetric set difference between every pair of paths on the species tree, and then runs the algorithm as described
     in Jordan's paper.
-    :param species_tree:
-    :param vertex_gene_tree:
-    :param gene_tree_root:
-    :param dtl_recon_graph:
-    :param debug:
-    :param zero_loss:
-    :return: """
-
-    # TODO: Fill this in (all functions)
+    :param species_tree:        The (edge-based) tree containing the species data.
+    :param vertex_gene_tree:    The vertex-based gene tree that we will be iterating over.
+    :param gene_tree_root:      The root of said gene tree
+    :param dtl_recon_graph:     The DTL reconciliation graph to find the diameter of, as returned by DTLReconGraph.py
+    :param debug:               Whether we should print a bunch of nice tables
+    :param zero_loss:           Whether we shouldn't count loss events in the diameter
+    :return:                    The diameter of the given DTL reconciliation graph."""
 
     # We need to get path_edges, a dict containing all of the edges for each path
     #   and non_trivial_path_list, a subset of path_list with all paths A->A removed.
@@ -598,7 +615,17 @@ def diameter_algorithm(species_tree, vertex_gene_tree, gene_tree_root, dtl_recon
 
 
 def write_to_csv(csv_file, costs, filename, mpr_count, diameter, gene_node_count,
-                 DP_time_taken, diameter_time_taken):
+                 DTLReconGraph_time_taken, diameter_time_taken):
+    """Takes a large amount of information about a diameter solution and appends it as one row to the provided csv file.
+    :param csv_file:                    The csv file to write to
+    :param costs:                       A string representing the costs used to calculate the DTL recon graph
+    :param filename:                    The name of the file that was reconciled
+    :param mpr_count:                   The number of MPRS found
+    :param diameter:                    The diameter that was found
+    :param gene_node_count:             The total number of nodes in the gene tree
+    :param DTLReconGraph_time_taken:    The amount of time that DTLReconGraph took to run
+    :param diameter_time_taken:         The amount of time that Diameter took to run
+    """
     file_exists = os.path.isfile(csv_file)
 
     with open(csv_file, 'a') as output_file:
@@ -607,13 +634,13 @@ def write_to_csv(csv_file, costs, filename, mpr_count, diameter, gene_node_count
         # Write the headers if we need to.
         if not file_exists:
             writer.writerow(["File Name", "Costs", "MPR Count", "Diameter", "Gene Node Count",
-                             "DP Computation Time", "Diameter Computation Time", "Date"])
+                             "DTLReconGraph Computation Time", "Diameter Computation Time", "Date"])
 
         writer.writerow([filename, costs, mpr_count, diameter, gene_node_count,
-                         DP_time_taken, diameter_time_taken, time.strftime("%c")])
+                         DTLReconGraph_time_taken, diameter_time_taken, time.strftime("%c")])
 
 
-def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=False):
+def calculate_diameter_from_file(filename, D, T, L, csv_file=None, debug=False):
     """This function computes the diameter of space of MPRs in a DTL reconciliation problem,
      as measured by the symmetric set distance between the events of the two reconciliations of the pair
       that has the highest such difference.
@@ -624,36 +651,39 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=Fa
       :param L:             The cost for loss events
       :param csv_file:      The csv file to output results to (will create it if it does not exist)
       :param debug:         Whether to print out all of the tables
-      :return: Nothing"""
+      :return:              Nothing, but we output results to a csv file."""
 
     # These statements check to make sure that all arguments were entered correctly.
-    assert isinstance(csv_file, (str, unicode))
+    assert isinstance(csv_file, (str, unicode)) or csv_file is None
     assert isinstance(filename, (str, unicode))
-    assert isinstance(D, int)
-    assert isinstance(T, int)
-    assert isinstance(L, int)
+    assert isinstance(D, (int, float))
+    assert isinstance(T, (int, float))
+    assert isinstance(L, (int, float))
     assert isinstance(debug, bool)
 
-    # Record the time that DP starts
+    # Record the time that DTLReconGraph starts
     start_time = time.clock()
 
-    # Get everything we need from DP
+    # Get everything we need from DTLReconGraph
     species_tree, gene_tree, dtl_recon_graph, mpr_count = DTLReconGraph.reconcile(filename, D, T, L)
 
-    # And record the amount of time DP took
-    DP_time_taken = time.clock() - start_time
-
-    print "Reconciliation Complete in \033[33m\033[1m{0} seconds\033[0m".format(DP_time_taken)
 
     # Record the time that this code starts
-    start_time = time.clock()
 
     # The gene tree needs to be in node format, not edge format, so we find that now.
     # (This also puts the gene_tree into postorder, as an ordered dict)
     gene_tree, gene_tree_root, gene_node_count = reformat_tree(gene_tree, "pTop")
 
-    # The DTL reconciliation graph as provided by DP has some extraneous numbers. We remove those here.
+    # The DTL reconciliation graph as provided by DTLReconGraph has some extraneous numbers. We remove those here.
     clean_graph(dtl_recon_graph, gene_tree_root)
+
+
+    # And record the amount of time DTLReconGraph + cleaning up the graph took
+    DTLReconGraph_time_taken = time.clock() - start_time
+
+    print "Reconciliation Graph Made in \033[33m\033[1m{0} seconds\033[0m".format(DTLReconGraph_time_taken)
+
+    start_time = time.clock()
 
     # Now we draw the rest of the owl
     diameter = diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph, debug, False)
@@ -666,56 +696,101 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=Fa
     zl_diameter_time_taken = time.clock()-start_time
 
 
-    print "The diameter of the given reconciliation dtl_recon_graph is \033[33m\033[1m{0}\033[0m".format(diameter)
+    print "The diameter of the given reconciliation graph is \033[33m\033[1m{0}\033[0m, (or \033[33m\033[1m{1}\033[0m if losses do not affect the diameter)".format(diameter, zl_diameter)
 
     # Timing data is inaccurate in debug mode (print statements take too long), so we only give it to the user in non-
     # debug mode.
     if not debug:
         print "Diameter found in \033[33m\033[1m{0} seconds\033[0m".format(diameter_time_taken)
-        print "Total time: \033[33m\033[1m{0} seconds\033[0m".format(diameter_time_taken + DP_time_taken)
+        print "Total time: \033[33m\033[1m{0} seconds\033[0m".format(diameter_time_taken + DTLReconGraph_time_taken)
 
     # Now, we write our results to a csv file.
-    costs = "D: {0} T: {1} L: {2}".format(D, T, L)
-    write_to_csv(csv_file + ".csv",costs,filename,mpr_count,diameter,gene_node_count,DP_time_taken,diameter_time_taken)
-    write_to_csv(csv_file + "_zl.csv", costs, filename, mpr_count, zl_diameter, gene_node_count, DP_time_taken,
-                 zl_diameter_time_taken)
+    if csv_file is not None:
+        costs = "D: {0} T: {1} L: {2}".format(D, T, L)
+        write_to_csv(csv_file + ".csv",costs,filename,mpr_count,diameter,gene_node_count,DTLReconGraph_time_taken,diameter_time_taken)
+        write_to_csv(csv_file + "_zl.csv", costs, filename, mpr_count, zl_diameter, gene_node_count, DTLReconGraph_time_taken,
+                     zl_diameter_time_taken)
     # And we're done.
     return
 
-# -2. COMMAND LINE FUNCTIONS
 
-def rep_calc():
-    """Command line function to repeatedly run through numbered files located at TreeLifeData/COG####.newick"""
-    if not 7 <= len(sys.argv) <= 8:
-        print_help()
+def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, debug=False):
+    """Iterates over a lot of input files and finds the diameter of all of them.
+    :param file_pattern: A string contains the name of the files to be used, with the counting number replaced with #'s
+    :param start:
+    :param end:
+    :param d:           Duplication event cost
+    :param t:           Transfer event cost
+    :param l:           Loss event cost
+    :param log:         csv file to log results to
+    :param debug:       Whether to print out every DP table made (not recommended)
+    :return:
+    """
+    match = re.match("([^#]*)(#+)([^#]*)", file_pattern)
+    if not match:
+        print "Filepath '" + file_pattern + "' not understood. Please enter the path to your files, with repeated hash marks" \
+                                       "(#'s) in place of sequential numbering."
         return
-    start = int(sys.argv[2])
-    end = int(sys.argv[3])
-    d = int(sys.argv[4])
-    t = int(sys.argv[5])
-    l = int(sys.argv[6])
-    if len(sys.argv) == 8:
-        log = sys.argv[7]
-    else:
-        log = "Log_File"
-    print "Running " + str(end - start) + " sequential jobs on TreeLifeData dataset with DTL of {0},{1},{2}".format(d,t,l)
+    fill = len(match.group(2))
+    if fill < len(str(end)) or fill < len(str(start)):
+        print "Starting or ending number is longer than '{1}' supports ({0} chars)!".format(fill, file_pattern)
+        return
+    print "Running {4} sequential jobs on files '{3}' with DTL of {0},{1},{2}".format(d, t, l, file_pattern, end - start)
     for i in range(start, end):
-        print "Reconciling COG" + str(i).zfill(4)
+        cur_file = "{0}{1}{2}".format(match.group(1), str(i).zfill(fill), match.group(3))
+        print "Reconciling {0}".format(cur_file)
         try:
-            calculate_diameter_from_file("TreeLifeData/COG{0}.newick".format(str(i).zfill(4)), d, t, l, log, False)
+            calculate_diameter_from_file(cur_file, d, t, l, log, debug)
         except IOError:
             print "(File Not Found)"
 
+
+# ################### COMMAND LINE FUNCTIONS ###################
+
+def rep_calc():
+    """Command line function to repeatedly run through numbered files located at TreeLifeData/COG####.newick"""
+    if not 8 <= len(sys.argv) <= 9:
+        print_help()
+        return
+    file_pattern = sys.argv[2]
+
+    start = int(sys.argv[3])
+    end = int(sys.argv[4])
+    d = float(sys.argv[5])
+    t = float(sys.argv[6])
+    l = float(sys.argv[7])
+    if len(sys.argv) == 9:
+        log = sys.argv[8]
+    else:
+        log = None
+    repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log)
+
+
+
 def print_help():
     """Prints a usage string."""
-    print "Usage:"
-    print "\ttest: runs a test function"
-    print "\tcalc file d t l [logfile]: calculates the diameter of a provided newick file"
-    print "\trep start end d t l [logfile]: repeatedly runs calc over the numbered COG files located in TreeLifeData"
+    print "Usage: (select one of the sub-comands below)"
+    print "\nDiameter -t\n" \
+          "\tRuns a test function"
+    print "\nDiameter -c file d t l [logfile]\n" \
+          "\tCalculates the diameter of a provided file\n" \
+          "\t\tfile: The path to the file to reconcile (must be a file containing newick trees for the gene and species" \
+          "trees and the tip mapping between them\n" \
+          "\t\td, t, l: The event costs for duplication, transfers, and losses respectively\n" \
+          "\t\t[logfile]: Optionally log results to this .csv file"
+    print "\nDiameter -r pattern start end d t l [logfile]\n" \
+          "\tRepeatedly runs calc over many consecutively-numbered files\n" \
+          "\t\tpattern: The path and filename that all files you wish to run share, with the consecutive numbering" \
+          " replaced with # symbols\n" \
+          "\t\tstart: The number of the first file to calculate\n" \
+          "\t\tend: The number of the last file to calculate\n" \
+          "\t\td, t, l: The event costs for duplication, transfers, and losses respectively\n" \
+          "\t\t[logfile]: Optionally log results to this .csv file"
+
 
 def test():
     """Command line function to run a short test."""
-    calculate_diameter_from_file("example", 2, 3, 1, "TestLog", True)
+    calculate_diameter_from_file("example", 1, 4, 1, "TestLog", True)
 
 def calc():
     """Command line function to calculate the diameter of a file"""
@@ -723,13 +798,13 @@ def calc():
         print_help()
         return
     file = sys.argv[2]
-    d = int(sys.argv[3])
-    t = int(sys.argv[4])
-    l = int(sys.argv[5])
+    d = float(sys.argv[3])
+    t = float(sys.argv[4])
+    l = float(sys.argv[5])
     if len(sys.argv) == 7:
         log = sys.argv[6]
     else:
-        log = "Log_File"
+        log = None
     print "Reconciling " + file
     try:
         calculate_diameter_from_file(file, d, t, l, log, False)
@@ -742,11 +817,11 @@ if __name__ == "__main__":
         print_help()
     elif sys.argv[1] in ["-h", "-H", "--help", "--Help"]:
         print_help()
-    elif sys.argv[1] == "test":
+    elif sys.argv[1] == "-t":
         test()
-    elif sys.argv[1] == "calc":
+    elif sys.argv[1] == "-c":
         calc()
-    elif sys.argv[1] == "rep":
+    elif sys.argv[1] == "-r":
         rep_calc()
     else:
         print_help()
