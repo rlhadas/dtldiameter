@@ -510,9 +510,12 @@ def clean_graph(dtl_recon_graph, gene_tree_root):
         # Get rid of all of the random numbers in the event list
         dtl_recon_graph[key] = filter(lambda e: not isinstance(e, (float, int)), dtl_recon_graph[key])
         # The events in the event dtl_recon_graph are stored as lists which cannot be used as dict keys. Let's fix that.
-        for i in range(0, len(dtl_recon_graph[key])):
+
+        # The below code is no longer necessary, as it is being filtered out in DTLReconGraph.py
+
+        # for i in range(0, len(dtl_recon_graph[key])):
             # Get rid of the last value, as it is a number we don't need
-            dtl_recon_graph[key][i] = dtl_recon_graph[key][i][:-1]
+            # dtl_recon_graph[key][i] = dtl_recon_graph[key][i][:-1]
 
         # DTLReconGraph should be filtering the loss events on the root node out, so we don't need to worry about it
         # if key[0] == gene_tree_root:
@@ -626,7 +629,7 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=Fa
       :return:              Nothing, but we output results to a csv file."""
 
     # These statements check to make sure that all arguments were entered correctly.
-    assert isinstance(csv_file, (str, unicode))
+    assert isinstance(csv_file, (str, unicode)) or csv_file is None
     assert isinstance(filename, (str, unicode))
     assert isinstance(D, int)
     assert isinstance(T, int)
@@ -639,13 +642,8 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=Fa
     # Get everything we need from DTLReconGraph
     species_tree, gene_tree, dtl_recon_graph, mpr_count = DTLReconGraph.reconcile(filename, D, T, L)
 
-    # And record the amount of time DTLReconGraph took
-    DTLReconGraph_time_taken = time.clock() - start_time
-
-    print "Reconciliation Complete in \033[33m\033[1m{0} seconds\033[0m".format(DTLReconGraph_time_taken)
 
     # Record the time that this code starts
-    start_time = time.clock()
 
     # The gene tree needs to be in node format, not edge format, so we find that now.
     # (This also puts the gene_tree into postorder, as an ordered dict)
@@ -653,6 +651,14 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=Fa
 
     # The DTL reconciliation graph as provided by DTLReconGraph has some extraneous numbers. We remove those here.
     clean_graph(dtl_recon_graph, gene_tree_root)
+
+
+    # And record the amount of time DTLReconGraph + cleaning up the graph took
+    DTLReconGraph_time_taken = time.clock() - start_time
+
+    print "Reconciliation Graph Made in \033[33m\033[1m{0} seconds\033[0m".format(DTLReconGraph_time_taken)
+
+    start_time = time.clock()
 
     # Now we draw the rest of the owl
     diameter = diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph, debug, False)
@@ -665,7 +671,7 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=Fa
     zl_diameter_time_taken = time.clock()-start_time
 
 
-    print "The diameter of the given reconciliation dtl_recon_graph is \033[33m\033[1m{0}\033[0m".format(diameter)
+    print "The diameter of the given reconciliation graph is \033[33m\033[1m{0}\033[0m, (or \033[33m\033[1m{1}\033[0m if losses do not affect the diameter)".format(diameter, zl_diameter)
 
     # Timing data is inaccurate in debug mode (print statements take too long), so we only give it to the user in non-
     # debug mode.
@@ -674,14 +680,15 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file="TestLog", debug=Fa
         print "Total time: \033[33m\033[1m{0} seconds\033[0m".format(diameter_time_taken + DTLReconGraph_time_taken)
 
     # Now, we write our results to a csv file.
-    costs = "D: {0} T: {1} L: {2}".format(D, T, L)
-    write_to_csv(csv_file + ".csv",costs,filename,mpr_count,diameter,gene_node_count,DTLReconGraph_time_taken,diameter_time_taken)
-    write_to_csv(csv_file + "_zl.csv", costs, filename, mpr_count, zl_diameter, gene_node_count, DTLReconGraph_time_taken,
-                 zl_diameter_time_taken)
+    if csv_file is not None:
+        costs = "D: {0} T: {1} L: {2}".format(D, T, L)
+        write_to_csv(csv_file + ".csv",costs,filename,mpr_count,diameter,gene_node_count,DTLReconGraph_time_taken,diameter_time_taken)
+        write_to_csv(csv_file + "_zl.csv", costs, filename, mpr_count, zl_diameter, gene_node_count, DTLReconGraph_time_taken,
+                     zl_diameter_time_taken)
     # And we're done.
     return
 
-# -2. COMMAND LINE FUNCTIONS ###################
+# ################### COMMAND LINE FUNCTIONS ###################
 
 def rep_calc():
     """Command line function to repeatedly run through numbered files located at TreeLifeData/COG####.newick"""
@@ -714,7 +721,7 @@ def print_help():
 
 def test():
     """Command line function to run a short test."""
-    calculate_diameter_from_file("example", 2, 3, 1, "TestLog", True)
+    calculate_diameter_from_file("example", 1, 4, 1, "TestLog", True)
 
 def calc():
     """Command line function to calculate the diameter of a file"""
@@ -728,7 +735,7 @@ def calc():
     if len(sys.argv) == 7:
         log = sys.argv[6]
     else:
-        log = "Log_File"
+        log = None
     print "Reconciling " + file
     try:
         calculate_diameter_from_file(file, d, t, l, log, False)
