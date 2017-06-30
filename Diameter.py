@@ -509,9 +509,9 @@ def clean_graph(dtl_recon_graph, gene_tree_root):
         # Get rid of all of the random numbers in the event list
         dtl_recon_graph[key] = filter(lambda e: not isinstance(e, (float, int)), dtl_recon_graph[key])
         # The events in the event dtl_recon_graph are stored as lists which cannot be used as dict keys. Let's fix that.
-        for i in range(0, len(dtl_recon_graph[key])):
+        #for i in range(0, len(dtl_recon_graph[key])):
             # Get rid of the last value, as it is a number we don't need
-            dtl_recon_graph[key][i] = dtl_recon_graph[key][i][:-1]
+            #dtl_recon_graph[key][i] = dtl_recon_graph[key][i][:-1]
 
         # DP should be filtering the loss events on the root node out, so we don't need to worry about it
         # if key[0] == gene_tree_root:
