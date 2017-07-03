@@ -68,13 +68,13 @@ To log the result to the end of a log file `Results.csv`, use
 
 To calculate the diameters for files `tree1.newick`, `tree2.newick`, and `tree4.newick`, use
 
->python Diameter.py -r 1 5 tree#.newick 2 3 1
+>python Diameter.py -i 1 5 tree#.newick 2 3 1
 
 The program will skip over the non-existent `tree3.newick`.
 
 To calculate the diameters for every file in the TreeLifeData folder, logging the result to COG_results.csv, while suppressing text and showing tables, use
 
->python Diameter.py -r 1 -l COG_results -qd 6000 TreeLifeData/COG####.newick 2 3 1
+>python Diameter.py -i 1 -l COG_results -qd 6000 TreeLifeData/COG####.newick 2 3 1
 
 ### Via Interactive Mode:
 
