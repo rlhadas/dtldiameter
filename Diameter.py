@@ -63,14 +63,15 @@
 #   build these tables by taking them in as a reference and modifying the values. These functions return nothing.
 #   Other functions (such as one starting with 'build') actually return the thing that they are creating.
 #
-#       The tables are described in detail in the technical report, but a summary of their functions follows:
+#       The tables are described in detail in the paper, but a summary of their functions follows:
 #
-#       exit_event_table contains the largest number of event nodes that each pair of reconciliations rooted at events
-#   x and y can differ for, where x and y are exit-event nodes in Group(u).
-#       exit_mapping_table contains the largest number of event nodes that each pair of reconciliation subtrees rooted
-#   at mapping nodes x and y can differ for, on the condition that x and y go immediately to an exit-event.
-#       enter_mapping_table is contains the largest number of event nodes that each pair of reconciliation subtrees
-#   rooted at x and y can differ for when x and y are used to enter Group(u).
+#       exit_event_table (only implied in the paper) contains the largest number of event nodes that each pair of
+#   reconciliations rooted at events x and y can differ for, where x and y are exit-event nodes in Group(u).
+#       exit_mapping_table (called EXIT in the paper) contains the largest number of event nodes that each pair of
+#   reconciliation subtrees rooted at mapping nodes x and y can differ for, on the condition that x and y go
+#   immediately to an exit-event.
+#       enter_mapping_table (called ENTER in the paper) contains the largest number of event nodes that each pair
+#   of reconciliation subtrees rooted at x and y can differ for when x and y are used to enter Group(u).
 #
 #       To get a better sense of how the tables are structured, you can try running an example in debug mode, which
 #   will actually print out these tables.
@@ -145,11 +146,13 @@ from collections import OrderedDict
 
 import sys
 import re
+import traceback
+import optparse
 
 
 def reformat_tree(tree, root):
     """A recursive function that changes the format of a (species or gene) tree from edge to vertex, as described
-    aboce. It returns the tree (in postorder), the root of the tree, and the number of nodes in the tree. The base
+    above. It returns the tree (in postorder), the root of the tree, and the number of nodes in the tree. The base
     case of this function is when there are no children for a given root.
     :param tree:        A tree in edge format
     :param root:        The root of that tree
@@ -167,6 +170,7 @@ def reformat_tree(tree, root):
     new_vertex_tree = OrderedDict()  # This has to be an OrderedDict, otherwise we can't guarantee it's in postorder
 
     # This is the number of nodes in the subtree rooted at each of our children
+    # We actually don't need to calculate this here at all, since the count will just be the length of new_vertex_tree
     child1_count = 0
     child2_count = 0
 
@@ -429,7 +433,8 @@ def compute_enter_mapping_table(u, enter_mapping_table, exit_mapping_table, mapp
     # and contains only mapping nodes.
     u_mapping_nodes = filter(lambda n: n[0] == u, mapping_node_list)
 
-    # Every mapping node (in u)'s list of mapping nodes that can be reached through loss events
+    # Every mapping node (in u)'s list of mapping nodes that can be reached through loss events (called REACH in the
+    # paper)
     loss_reachable = {}
 
     for mapping_node in u_mapping_nodes:
@@ -640,7 +645,7 @@ def write_to_csv(csv_file, costs, filename, mpr_count, diameter, gene_node_count
                          DTLReconGraph_time_taken, diameter_time_taken, time.strftime("%c")])
 
 
-def calculate_diameter_from_file(filename, D, T, L, csv_file=None, debug=False):
+def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbose=True):
     """This function computes the diameter of space of MPRs in a DTL reconciliation problem,
      as measured by the symmetric set distance between the events of the two reconciliations of the pair
       that has the highest such difference.
@@ -649,12 +654,12 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file=None, debug=False):
       :param D:             The cost for duplication events
       :param T:             The cost for transfer events
       :param L:             The cost for loss events
-      :param csv_file:      The csv file to output results to (will create it if it does not exist)
+      :param log:           The csv file to output results to (will create it if it does not exist)
       :param debug:         Whether to print out all of the tables
       :return:              Nothing, but we output results to a csv file."""
 
     # These statements check to make sure that all arguments were entered correctly.
-    assert isinstance(csv_file, (str, unicode)) or csv_file is None
+    assert isinstance(log, (str, unicode)) or log is None
     assert isinstance(filename, (str, unicode))
     assert isinstance(D, (int, float))
     assert isinstance(T, (int, float))
@@ -681,7 +686,8 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file=None, debug=False):
     # And record the amount of time DTLReconGraph + cleaning up the graph took
     DTLReconGraph_time_taken = time.clock() - start_time
 
-    print "Reconciliation Graph Made in \033[33m\033[1m{0} seconds\033[0m".format(DTLReconGraph_time_taken)
+    if verbose:
+        print "Reconciliation Graph Made in \033[33m\033[1m{0} seconds\033[0m".format(DTLReconGraph_time_taken)
 
     start_time = time.clock()
 
@@ -695,30 +701,30 @@ def calculate_diameter_from_file(filename, D, T, L, csv_file=None, debug=False):
     zl_diameter = diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph, debug, True)
     zl_diameter_time_taken = time.clock()-start_time
 
-
-    print "The diameter of the given reconciliation graph is \033[33m\033[1m{0}\033[0m, (or \033[33m\033[1m{1}\033[0m if losses do not affect the diameter)".format(diameter, zl_diameter)
+    if verbose:
+        print "The diameter of the given reconciliation graph is \033[33m\033[1m{0}\033[0m, (or \033[33m\033[1m{1}\033[0m if losses do not affect the diameter)".format(diameter, zl_diameter)
 
     # Timing data is inaccurate in debug mode (print statements take too long), so we only give it to the user in non-
     # debug mode.
-    if not debug:
+    if not debug and verbose:
         print "Diameter found in \033[33m\033[1m{0} seconds\033[0m".format(diameter_time_taken)
         print "Total time: \033[33m\033[1m{0} seconds\033[0m".format(diameter_time_taken + DTLReconGraph_time_taken)
 
     # Now, we write our results to a csv file.
-    if csv_file is not None:
+    if log is not None:
         costs = "D: {0} T: {1} L: {2}".format(D, T, L)
-        write_to_csv(csv_file + ".csv",costs,filename,mpr_count,diameter,gene_node_count,DTLReconGraph_time_taken,diameter_time_taken)
-        write_to_csv(csv_file + "_zl.csv", costs, filename, mpr_count, zl_diameter, gene_node_count, DTLReconGraph_time_taken,
+        write_to_csv(log + ".csv", costs, filename, mpr_count, diameter, gene_node_count, DTLReconGraph_time_taken, diameter_time_taken)
+        write_to_csv(log + "_zl.csv", costs, filename, mpr_count, zl_diameter, gene_node_count, DTLReconGraph_time_taken,
                      zl_diameter_time_taken)
     # And we're done.
     return
 
 
-def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, debug=False):
+def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, debug=False, verbose=True):
     """Iterates over a lot of input files and finds the diameter of all of them.
     :param file_pattern: A string contains the name of the files to be used, with the counting number replaced with #'s
-    :param start:
-    :param end:
+    :param start:       Numbered file to start on
+    :param end:         Numbered file to end with
     :param d:           Duplication event cost
     :param t:           Transfer event cost
     :param l:           Loss event cost
@@ -732,96 +738,57 @@ def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, d
                                        "(#'s) in place of sequential numbering."
         return
     fill = len(match.group(2))
-    if fill < len(str(end)) or fill < len(str(start)):
-        print "Starting or ending number is longer than '{1}' supports ({0} chars)!".format(fill, file_pattern)
+    if fill < len(str(end-1)) or fill < len(str(start)):
+        print "Starting or ending number is larger than '{1}' supports ({0})!".format((10 ** fill) -1, file_pattern)
         return
     print "Running {4} sequential jobs on files '{3}' with DTL of {0},{1},{2}".format(d, t, l, file_pattern, end - start)
     for i in range(start, end):
         cur_file = "{0}{1}{2}".format(match.group(1), str(i).zfill(fill), match.group(3))
         print "Reconciling {0}".format(cur_file)
         try:
-            calculate_diameter_from_file(cur_file, d, t, l, log, debug)
+            calculate_diameter_from_file(cur_file, d, t, l, log, debug, verbose)
         except IOError:
             print "(File Not Found)"
+        except (KeyboardInterrupt, SystemExit):
+            raise  # Don't prevent the user from exiting the program.
+        except:
+            if verbose:
+                print traceback.print_exc(sys.exc_traceback)
+            print "Could not reconcile file '{0}'. Continuing, but please make sure the file was formatted correctly!"\
+                .format(cur_file)
 
 
-# ################### COMMAND LINE FUNCTIONS ###################
+def main():
+    """Processes command line arguments"""
+    usage = "usage: %prog [options] file d t l"
+    p = optparse.OptionParser(usage=usage)
+    p.add_option("-l", "--log", dest="logfile", help="writes a logfile in CSV format to LOGFILE", metavar="LOGFILE")
+    p.add_option("-i", "--iterate", dest="count", action="store", nargs=2, help="calculates every file matching a "
+                                                                                "pattern (defined in the file argument)"
+                                                                                " with number MIN to MAX.",
+                 metavar="MIN MAX", type=int)
+    p.add_option("-d", "--debug", dest="debug", action="store_true", default=False, help= "prints out every DP table with size less"
+                                                                           "than 30x30")
+    p.add_option("-q", "--quiet", dest="verbose", action="store_false", default=True,
+                 help="suppresses (most) text output")
 
-def rep_calc():
-    """Command line function to repeatedly run through numbered files located at TreeLifeData/COG####.newick"""
-    if not 8 <= len(sys.argv) <= 9:
-        print_help()
-        return
-    file_pattern = sys.argv[2]
-
-    start = int(sys.argv[3])
-    end = int(sys.argv[4])
-    d = float(sys.argv[5])
-    t = float(sys.argv[6])
-    l = float(sys.argv[7])
-    if len(sys.argv) == 9:
-        log = sys.argv[8]
+    (options, args) = p.parse_args()
+    if len(args) != 4:
+        p.error("4 arguments must be provided: file, d, t, and l")
+    file = args[0]
+    d = float(args[1])
+    t = float(args[2])
+    l = float(args[3])
+    log = options.logfile
+    debug = options.debug
+    verbose = options.verbose
+    if not (log or debug or verbose):
+        p.error("some form of output must be specified! (-l or -d must be used when -q is used)")
+    elif options.count is not None:
+        rep = options.count
+        repeatedly_calculate_diameter(file, rep[0], rep[1], d, t, l, log, debug, verbose)
     else:
-        log = None
-    repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log)
-
-
-
-def print_help():
-    """Prints a usage string."""
-    print "Usage: (select one of the sub-comands below)"
-    print "\nDiameter -t\n" \
-          "\tRuns a test function"
-    print "\nDiameter -c file d t l [logfile]\n" \
-          "\tCalculates the diameter of a provided file\n" \
-          "\t\tfile: The path to the file to reconcile (must be a file containing newick trees for the gene and species" \
-          "trees and the tip mapping between them\n" \
-          "\t\td, t, l: The event costs for duplication, transfers, and losses respectively\n" \
-          "\t\t[logfile]: Optionally log results to this .csv file"
-    print "\nDiameter -r pattern start end d t l [logfile]\n" \
-          "\tRepeatedly runs calc over many consecutively-numbered files\n" \
-          "\t\tpattern: The path and filename that all files you wish to run share, with the consecutive numbering" \
-          " replaced with # symbols\n" \
-          "\t\tstart: The number of the first file to calculate\n" \
-          "\t\tend: The number of the last file to calculate\n" \
-          "\t\td, t, l: The event costs for duplication, transfers, and losses respectively\n" \
-          "\t\t[logfile]: Optionally log results to this .csv file"
-
-
-def test():
-    """Command line function to run a short test."""
-    calculate_diameter_from_file("example", 1, 4, 1, "TestLog", True)
-
-def calc():
-    """Command line function to calculate the diameter of a file"""
-    if not 6 <= len(sys.argv) <= 7:
-        print_help()
-        return
-    file = sys.argv[2]
-    d = float(sys.argv[3])
-    t = float(sys.argv[4])
-    l = float(sys.argv[5])
-    if len(sys.argv) == 7:
-        log = sys.argv[6]
-    else:
-        log = None
-    print "Reconciling " + file
-    try:
-        calculate_diameter_from_file(file, d, t, l, log, False)
-    except IOError:
-        print "(File Not Found)"
+        calculate_diameter_from_file(file, d, t, l, log, debug, verbose)
 
 if __name__ == "__main__":
-    """Processes command line arguments"""
-    if len(sys.argv) <= 1:
-        print_help()
-    elif sys.argv[1] in ["-h", "-H", "--help", "--Help"]:
-        print_help()
-    elif sys.argv[1] == "-t":
-        test()
-    elif sys.argv[1] == "-c":
-        calc()
-    elif sys.argv[1] == "-r":
-        rep_calc()
-    else:
-        print_help()
+    main()

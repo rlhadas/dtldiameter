@@ -150,10 +150,9 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
 
                     # Create a contemporary event
                     Amin = [("C", (None, None), (None, None))]
-
                 else:
-
                     # Non-matched tips can't reconcile
+
                     A[(ep, eh)] = Infinity
                     Amin = [Infinity]
             else:
@@ -176,6 +175,7 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                     COepeh = Infinity
                     coMin = [Infinity]
 
+
                 # Compute L and create event list to add to eventsDict
                 LOSSepeh = L + min(C[(ep, eh1)], C[(ep, eh2)])
                 lossMin = []  # List to keep track of lowest cost loss
@@ -185,6 +185,7 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                     lossMin.append(("L", (vp, hChild1), (None, None)))
                 if LOSSepeh == L + C[(ep, eh2)]:
                     lossMin.append(("L", (vp, hChild2), (None, None)))
+
 
                 # Determine which event occurs for A[(ep, eh)]
                 A[(ep, eh)] = min(COepeh, LOSSepeh)
@@ -230,11 +231,9 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
 
                         # Proposed new landing site
                         currentLoc = location[1]
-
                         # Append the proposed event to the list of possible switches
                         switchList.append(("T", (pChild1, vh), (pChild2,
                                            currentLoc)))
-
                 # If ep1 switching has the lowest cost or equal to the other
                 elif (C[(ep2, eh)] + bestSwitch[(ep1, eh)]) <= (C[(ep1, eh)] +
                                                                 bestSwitch[(ep2, eh)]):
@@ -249,6 +248,7 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                         # Append the proposed event to the list of possible switches
                         switchList.append(("T", (pChild2, vh),
                                            (pChild1, currentLoc)))
+            
             else:  # vp is a tip
                 SWITCHepeh = Infinity
                 switchList = [Infinity]
@@ -269,7 +269,7 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                 eventsDict[(vp, vh)].extend(Amin)
 
             # Calculate O for eh's children
-
+            
             # Remove all 'impossible' events from the options
             if minCost[(vp, vh)] == Infinity:
                 del minCost[(vp, vh)]

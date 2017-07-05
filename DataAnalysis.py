@@ -1,3 +1,8 @@
+# DataAnalysis.py
+# Written by Eli Zupke, June 2017
+# This is a rather messy file for analyzing the data returned by Diameter. It is not intended for release.
+
+
 import csv
 import numpy
 import matplotlib.pyplot as plt
@@ -151,24 +156,25 @@ def findExtrema(csv_file, zero_loss):
     DP_time = ax[0]
     diameter_time = ax[1]
     total_time = ax[2]
+    DP_time.scatter(gene_count_list, DP_timings, c=diameter_over_gene_list, s=size)
+    DP_time.set_xlabel("Gene Tree Size\n"r"{\fontsize{30pt}{3em}\selectfont{}(a)}", linespacing=2.5, labelpad=20)
+    DP_time.set_ylabel("Time (seconds)")
+    DP_time.set_title("Computing Reconciliation Graph")
+    DP_time.grid()
+    DP_time.set_yscale('log')
+    DP_time.set_xscale('log')
+    DP_time.set_ylim(0.01, (10**5))
     diameter_time.scatter(gene_count_list, diameter_timings, c=diameter_over_gene_list, s=size)
     diameter_time.set_xlabel("Gene Tree Size\n"r"{\fontsize{30pt}{3em}\selectfont{}(b)}", linespacing=2.5, labelpad=20)
-    diameter_time.set_ylabel("Diameter Time (seconds)")
-    diameter_time.set_title("Diameter Running Time")
+    diameter_time.set_ylabel("Time (seconds)")
+    diameter_time.set_title("Computing Diameter")
     diameter_time.grid()
     diameter_time.set_ylim(0.01, (10**5))
     diameter_time.set_yscale('log')
     diameter_time.set_xscale('log')
-    DP_time.scatter(gene_count_list, DP_timings, c=diameter_over_gene_list, s=size)
-    DP_time.set_xlabel("Gene Tree Size\n"r"{\fontsize{30pt}{3em}\selectfont{}(a)}", linespacing=2.5, labelpad=20)
-    DP_time.set_ylabel("DP Time (seconds)")
-    DP_time.set_title("DP Running Time")
-    DP_time.grid()
-    DP_time.set_yscale('log')
-    DP_time.set_xscale('log')
     total_time.scatter(gene_count_list, total_timings, c=diameter_over_gene_list, s=size)
     total_time.set_xlabel("Gene Tree Size\n"r"{\fontsize{30pt}{3em}\selectfont{}(a)}", linespacing=2.5, labelpad=20)
-    total_time.set_ylabel("Total Time (seconds)")
+    total_time.set_ylabel("Time (seconds)")
     total_time.set_title("Total Running Time")
     total_time.grid()
     total_time.set_ylim(0.01, (10**5))
@@ -191,8 +197,8 @@ def findSpecific(col, value, csv_file="COG_Pilot_Log_02.csv", tol=0):
                     print row
 
 def t():
-    #findExtrema("COG_Pilot_Log_03.csv",False)
-    findExtrema("ZL_COG_Pilot_Log_03.csv", True)
+    findExtrema("COG_Runtime_Log.csv",False)
+    findExtrema("COG_Runtime_Log_zl.csv", True)
 
 
 def check_files():
