@@ -152,7 +152,7 @@ import optparse
 
 def reformat_tree(tree, root):
     """A recursive function that changes the format of a (species or gene) tree from edge to vertex, as described
-    aboce. It returns the tree (in postorder), the root of the tree, and the number of nodes in the tree. The base
+    above. It returns the tree (in postorder), the root of the tree, and the number of nodes in the tree. The base
     case of this function is when there are no children for a given root.
     :param tree:        A tree in edge format
     :param root:        The root of that tree
@@ -739,7 +739,7 @@ def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, d
                                        "(#'s) in place of sequential numbering."
         return
     fill = len(match.group(2))
-    if fill < len(str(end)) or fill < len(str(start)):
+    if fill < len(str(end-1)) or fill < len(str(start)):
         print "Starting or ending number is larger than '{1}' supports ({0})!".format((10 ** fill) -1, file_pattern)
         return
     print "Running {4} sequential jobs on files '{3}' with DTL of {0},{1},{2}".format(d, t, l, file_pattern, end - start)
