@@ -24,11 +24,9 @@
 # equal to 2.
 
 # All necessary import statements
-import copy
 import newickFormatReader
 import Greedy
 import sys
-import time
 
 Infinity = float('inf')
 
@@ -139,7 +137,7 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                 # Save end node names for the host's children
                 hChild1 = eh1[1]
                 hChild2 = eh2[1]
-                
+
             # Compute A(ep, eh)
 
             if vhIsATip:
@@ -195,7 +193,7 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                 # event(s) produces least cost
                 if COepeh < LOSSepeh:
                     Amin = coMin
-                elif LOSSepeh < COepeh: 
+                elif LOSSepeh < COepeh:
                     Amin = lossMin
                 else:
                     Amin = lossMin + coMin
@@ -278,9 +276,9 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                 del eventsDict[(vp, vh)]
 
             # Compute oBest[(vp, vh)], the source of O(ep, eh)
-            if vhIsATip: 
+            if vhIsATip:
                 O[(ep, eh)] = C[(ep, eh)]
-                oBest[(vp, vh)] = [(vp, vh)]              
+                oBest[(vp, vh)] = [(vp, vh)]
             else:
 
                 # Compute O(ep, eh) if vh is not a tip
@@ -320,7 +318,7 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                 hChild2 = hostTree[eh][3][1]
 
             # Find best cost for a switch to occur (bestSwitch)
-            # and the location to which the edge switches (bestSwitchLocations)   
+            # and the location to which the edge switches (bestSwitchLocations)
             if not vhIsATip:
 
                 # Initialize lists for switch locations
@@ -438,7 +436,7 @@ def preorderCheck(preOrderList):
         depth = item[1]
         finalList.append(item)
 
-        # Check for duplicate instances with smaller depth levels 
+        # Check for duplicate instances with smaller depth levels
         for newItem in finalList:
             newNode = newItem[0]
             newDepth = newItem[1]
