@@ -28,6 +28,7 @@ import copy
 import newickFormatReader
 import Greedy
 import sys
+import time
 
 Infinity = float('inf')
 
@@ -69,20 +70,16 @@ def postorder(tree, rootEdgeName):
                [rootEdgeName]
 
 
-def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
+def DP(hostTree, parasiteTree, phi, D, T, L):
     """ Takes a hostTree, parasiteTree, tip mapping function phi, and duplication cost (D),
-        transfer cost (T), loss cost (L), and a bool indicating whether score frequency (defined
-        later in docstring) should be outputted, and returns the DTL reconciliation
+        transfer cost (T), and loss cost (L), and returns the DTL reconciliation
         graph in the form of a dictionary, as well as the total cost of the
         optimal Maximum Parsimony Reconciliation and the number of maximum
         parsimony reconciliations. Note that the DTL reconciliation graph
         is returned as a dictionary with mapping nodes for keys, and values
-        corresponding to lists which include all valid event nodes (along with
-        the number of MPRs in which each event occurs, the last element in each
-        tuple in the list) for a given mapping node for the MPR, minimum cost associated
-        with the mapping node as the last element in the list. The frequency score
-        corresponds to the number of MPRs in which eachThe notation and dynamic programming
-        algorithm are explained in the tech report. Cospeciation is assumed to cost 0. """
+        corresponding to lists which include all valid event nodes for a given
+        mapping node for the MPR, with minimum cost associated with the mapping node as
+        the last element in the list. """
 
     # A, C, O, and bestSwitch are all defined in tech report. Keys are edges and values are as defined in tech report
     A = {}
@@ -90,7 +87,7 @@ def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
     O = {}
     bestSwitch = {}
 
-    # Keeps track of events, children, and scores. Keys are vertex pairs and values are event representations in a tuple
+    # Keeps track of events and children. Keys are vertex pairs and values are event representations in a tuple
     eventsDict = {}
 
     # Dictionary to keep track of minimum reconciliation cost for each (vp, vh)
@@ -101,9 +98,6 @@ def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
 
     # Keeps track of switch locations. Keys are edges, values are edges to send the key edges to for transfers
     bestSwitchLocations = {}
-
-    # Calculates and keeps track of the frequency scoring of each event
-    Score = {}
 
     # Following logic taken from tech report, we loop over all ep and eh
     for ep in postorder(parasiteTree, "pTop"):
@@ -157,14 +151,11 @@ def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
                     A[(ep, eh)] = 0
 
                     # Create a contemporary event
-                    Amin = [("C", (None, None), (None, None), 1.0)]
+                    Amin = [("C", (None, None), (None, None))]
 
-                    # Give a frequency of 1 to this event
-                    Score[(vp, vh)] = 1.0
                 else:
 
                     # Non-matched tips can't reconcile
-                    Score[(vp, vh)] = Infinity
                     A[(ep, eh)] = Infinity
                     Amin = [Infinity]
             else:
@@ -179,16 +170,13 @@ def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
                     coMin = []  # List to keep track lowest cost speciation
                     if COepeh == C[(ep2, eh1)] + C[(ep1, eh2)]:
                         coMin.append(("S", (pChild2, hChild1),
-                                      (pChild1, hChild2), (Score[(pChild2, hChild1)] *
-                                                           Score[(pChild1, hChild2)])))
+                                      (pChild1, hChild2)))
                     if COepeh == C[(ep1, eh1)] + C[(ep2, eh2)]:
                         coMin.append(("S", (pChild1, hChild1),
-                                      (pChild2, hChild2), (Score[(pChild1, hChild1)] *
-                                                           Score[(pChild2, hChild2)])))
+                                      (pChild2, hChild2)))
                 else:
                     COepeh = Infinity
                     coMin = [Infinity]
-                    Score[(vp, vh)] = Infinity
 
                 # Compute L and create event list to add to eventsDict
                 LOSSepeh = L + min(C[(ep, eh1)], C[(ep, eh2)])
@@ -196,11 +184,9 @@ def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
 
                 # Check which (or maybe both) option produces the minimum
                 if LOSSepeh == L + C[(ep, eh1)]:
-                    lossMin.append(("L", (vp, hChild1), (None, None),
-                                    Score[(vp, hChild1)]))
+                    lossMin.append(("L", (vp, hChild1), (None, None)))
                 if LOSSepeh == L + C[(ep, eh2)]:
-                    lossMin.append(("L", (vp, hChild2), (None, None),
-                                    Score[(vp, hChild2)]))
+                    lossMin.append(("L", (vp, hChild2), (None, None)))
 
                 # Determine which event occurs for A[(ep, eh)]
                 A[(ep, eh)] = min(COepeh, LOSSepeh)
@@ -222,8 +208,7 @@ def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
                 DUPepeh = D + C[(ep1, eh)] + C[(ep2, eh)]
 
                 # List to keep track of lowest cost duplication event
-                dupList = ("D", (pChild1, vh), (pChild2, vh),
-                           (Score[(pChild1, vh)] * Score[(pChild2, vh)]))
+                dupList = ("D", (pChild1, vh), (pChild2, vh))
             else:
                 DUPepeh = Infinity
                 dupList = [Infinity]
@@ -248,15 +233,9 @@ def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
                         # Proposed new landing site
                         currentLoc = location[1]
 
-                        # Proposed switch to a leaf, which is an impossible event
-                        if currentLoc is None:
-                            Score[(pChild1, currentLoc)] = Infinity
-                            Score[(pChild2, currentLoc)] = Infinity
-
                         # Append the proposed event to the list of possible switches
                         switchList.append(("T", (pChild1, vh), (pChild2,
-                                           currentLoc), (Score[(pChild1, vh)] *
-                                                         Score[(pChild2, currentLoc)])))
+                                           currentLoc)))
 
                 # If ep1 switching has the lowest cost or equal to the other
                 elif (C[(ep2, eh)] + bestSwitch[(ep1, eh)]) <= (C[(ep1, eh)] +
@@ -269,15 +248,9 @@ def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
                         # Proposed new landing site
                         currentLoc = location[1]
 
-                        # Proposed switch to a leaf, which is an impossible event
-                        if currentLoc is None:
-                            Score[(pChild1, currentLoc)] = Infinity
-                            Score[(pChild2, currentLoc)] = Infinity
-
                         # Append the proposed event to the list of possible switches
                         switchList.append(("T", (pChild2, vh),
-                                           (pChild1, currentLoc), (Score[(pChild2, vh)] *
-                                                                   Score[(pChild1, currentLoc)])))
+                                           (pChild1, currentLoc)))
             else:  # vp is a tip
                 SWITCHepeh = Infinity
                 switchList = [Infinity]
@@ -298,24 +271,6 @@ def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
                 eventsDict[(vp, vh)].extend(Amin)
 
             # Calculate O for eh's children
-
-            # Scan through all of the keys (e.g. (a, A)) recorded so far
-            # Note an event is stored in eventsDict in the form
-            # [event (str), pair1 (tuple, str), pair2 (tuple, str), score (float)]
-            for key in eventsDict:
-                mapScore = 0  # Initialize frequency scoring for each event
-
-                # Search the dict for events related to the current key
-                for event in eventsDict[key]:
-
-                    # This filters actual events, since events are stored as lists
-                    if isinstance(event, tuple):
-
-                        # Frequency scores are the last element, and that's what this extracts
-                        mapScore += event[-1]
-
-                # Accumulate that and set it as the score for the current key
-                Score[key] = mapScore
 
             # Remove all 'impossible' events from the options
             if minCost[(vp, vh)] == Infinity:
@@ -406,33 +361,7 @@ def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
     # Build the reconciliation graph as a dictionary, with keys as mapping nodes and values as event nodes
     DTLReconGraph = buildDTLReconGraph(treeMin, eventsDict, {})
 
-    # Initialize the variable storing the number of MPRs
-    nMPRs = None
-
-    # Consider whether the user wanted to use the Scores
-    if useScores:
-
-        # Filter values from the score dictionary so it can be passed to addScores
-        for key in Score.keys():
-            if key not in DTLReconGraph:
-                del Score[key]
-
-        DTLReconGraph, nMPRs = addScores(treeMin, DTLReconGraph, Score)  # Less efficient method of computing nMPRs
-
-        # Make sure nMPRs is represented as an int - the result will always be an integer value
-        nMPRs = int(nMPRs)
-
-    # If not, suppress score from the output
-    else:
-        for mappingNode in DTLReconGraph:  # Search over all nodes in the recon graph
-            for event in range(len(DTLReconGraph[mappingNode]) - 1):  # Search over all events for each node
-                # Note we do len(... - 1) because the last element isn't an event, it's the min cost (defined above)
-
-                # Filter out spurious entries from the return value
-                DTLReconGraph[mappingNode][event] = DTLReconGraph[mappingNode][event][:-1]
-
-                # The total number of MPRs for this optimal cost, calculated the more time-efficient way
-                nMPRs = countMPRsWrapper(treeMin, DTLReconGraph)
+    nMPRs = countMPRsWrapper(treeMin, DTLReconGraph)
 
     # The total cost of the best reconciliation
     bestCost = minCost[treeMin[0]]
@@ -466,6 +395,9 @@ def preorderDTLsort(DTLReconGraph, ParasiteRoot):
     return orderedKeysL
 
 
+# Note that this function was used in an old version of this code, but has since
+# been replaced in favor of a more efficient method of implementing frequency
+# scoring. So it plays no significant part in the algorithm at this time - 7/5/2017
 def preorderCheck(preOrderList):
     """
     :param preOrderList: output from preorderDTLsort. See that function for the structure
@@ -478,7 +410,9 @@ def preorderCheck(preOrderList):
     # Filtering for multiple instances of a with different b by keeping biggest
     # b instance. This is safe: ensures that all possible parents of a node will
     # be handled before a node to prevent considering duplicates in the
-    # addScores function.
+    # addScores function. - Note by Andrew Ramirez, July 5 2017: the addScores
+    # function, along with frequency scoring in general, has since been removed
+    # from this file and is implemented in a separate file now.
     # Correction by Jean Sung, July 2016
 
     newList = []
@@ -512,66 +446,6 @@ def preorderCheck(preOrderList):
                 finalList.remove(newItem)
                 break
     return finalList
-
-
-def addScores(treeMin, DTLReconGraph, ScoreDict):
-    """
-    :param treeMin: output from findBestRoots. It is a list of mapping
-    nodes that could produce a MPR, with elements in the format (p, h),
-    where p is the parasite node being mapped onto host node h
-    :param DTLReconGraph: output from buildDTLReconGraph (see that
-    function for the structure of this input)
-    :param ScoreDict: the dictionary of frequency scores, where each key
-    is a tuple (vp, vh), where vp is a parasite vertex and vh is a host
-    vertex, and values are frequency scores. See the description of Score
-    near the top of the function DP for more info on this input
-    :return: a new DTLReconGraph with only frequency scores of each event
-    modified, but it also returns the number of MPRs for the given
-    DTLReconGraph
-    """
-
-    # Dictionary has mapping nodes with event node children
-    newDTL = copy.deepcopy(DTLReconGraph)
-    parentsDict = {}
-    preOrder1 = preorderDTLsort(DTLReconGraph, treeMin[0][0])
-    preOrder2 = preorderCheck(preOrder1)
-    for root in preOrder2:
-        if root != (None, None):
-            vertex = root[0]
-
-            if root[1] == 0:
-                parentsDict[vertex] = ScoreDict[vertex]
-
-            # LAST is garbage  value used in the dp construction   
-            for n in range(len(DTLReconGraph[vertex]) - 1):
-                _, child1, child2, oldScore = DTLReconGraph[vertex][n]
-
-                # Copy the tuple but modify the last value - this is the only way to do it, since tuples are immutable
-                newDTL[vertex][n] = (newDTL[vertex][n][0], newDTL[vertex][n][1], newDTL[vertex][n][2],
-                                     parentsDict[vertex] * (oldScore / ScoreDict[vertex]))
-
-                if child1 != (None, None):
-                    if child1 in parentsDict:
-                        parentsDict[child1] += newDTL[vertex][n][3]
-                    else: 
-                        parentsDict[child1] = newDTL[vertex][n][3] 
-                if child2 != (None, None):
-                    if child2 in parentsDict:
-                        parentsDict[child2] += newDTL[vertex][n][3]
-                    else: 
-                        parentsDict[child2] = newDTL[vertex][n][3]
-     
-    normalize = newDTL[preOrder2[-1][0]][0][-1]  # preOrder2[-1][0] is the last value considered in the above loop
-
-    # Adjust all values in the DTL
-    for key in newDTL:
-
-        # Again, last value is garbage 
-        for event in newDTL[key][:-1]:
-
-            newDTL[key][:-1][-1] = event[-1] / normalize
-
-    return newDTL, normalize
 
 
 def countMPRsWrapper(mappingNodeLst, DTLReconGraph):
@@ -678,33 +552,29 @@ def buildDTLReconGraph(tupleList, eventDict, uniqueDict):
     for vertexPair in tupleList:
         if vertexPair not in uniqueDict:
             uniqueDict[vertexPair] = eventDict[vertexPair]
-        for event in eventDict[vertexPair][:-1]:
-            for location in event:
-                if type(location) is tuple and location != (None, None):
-                    buildDTLReconGraph([location], eventDict, uniqueDict)
+            for event in eventDict[vertexPair][:-1]:
+                for location in event:
+                    if type(location) is tuple and location != (None, None):
+                        buildDTLReconGraph([location], eventDict, uniqueDict)
     return uniqueDict
 
 
-def reconcile(fileName, D, T, L, useScores=False):
+def reconcile(fileName, D, T, L):
     """
     :param fileName: the file in which the desired data set it stored, passed as
-    a string. For Ran Libesking-Hadas's group, our data files were almost exclusively
+    a string. For Ran Libeskind-Hadas's/Jessica Wu's group, our data files were almost exclusively
     .newick files once we were sure our algorithm worked correctly, which needed to use
     the newick format reader to correctly read in the data.
     :param D: the cost associated with a duplication event
     :param T: the cost associated with a transfer event
     :param L: the cost associated with a loss event
-    :param useScores: an boolean value that lets the user choose whether to use the
-    more efficient method of finding the number of MPRs for a given data set (useScores=False)
-    or to use the less efficient method that still outputs the number of MPRs but also
-    gives frequency scores in the values for the DTLReconGraph
     :return: the host tree used, the parasite tree used, the DTLReconGraph, and the number of
     MPRs (as an int). See preceding functions for details on the format of the host and parasite
     trees as well as the DTLReconGraph
     """
     # Note: I have made modifications to the return statement to make Diameter.py possible without re-reconciling.
     host, paras, phi = newickFormatReader.getInput(fileName)
-    graph, _, numRecon = DP(host, paras, phi, D, T, L, useScores)
+    graph, _, numRecon = DP(host, paras, phi, D, T, L)
     return host, paras, graph, numRecon
 
 
@@ -712,11 +582,11 @@ def reconcile(fileName, D, T, L, useScores=False):
 
 def usage():
     """
-    :return: none, but print the usage statement associated with reconcile
+    :return: the usage statement associated with reconcile
     """
-    return ('usage: DTLReconGraph [-s] filename D_cost T_cost L_cost\n\t  filename: the name of the file that contains'
-          ' the data \n\t  D_cost, T_cost, L_cost: the costs associated with duplication, transfer, and loss events,'
-          ' respectively\n\t  -s: if added, this flag causes the code to use Scores, as explained in the code file')
+    return ('usage: DTLReconGraph filename D_cost T_cost L_cost\n\t  filename: the name of the file that contains'
+          ' the data \n\t  D_cost, T_cost, L_cost: costs for duplication, transfer, and loss events,'
+          ' respectively')
 
 # If the user runs this from the command line
 if __name__ == "__main__":  # Only run if this has been called
@@ -731,23 +601,12 @@ if __name__ == "__main__":  # Only run if this has been called
             print(usage())
         else:
             try:
-
-                # Detect whether the -s flag was chosen and remove it from the arg list
-                if '-s' in sys.argv:
-                    arglst.remove('-s')
-                    result = reconcile(arglst[1], float(arglst[2]), float(arglst[3]), float(arglst[4]), True)
-                    for i in range(len(result)):
-                        if i != 3:
-                            print(str(result[i]) + '\n')
-                        else:
-                            print(str(result[i]))
-                else:
-                    result = reconcile(arglst[1], float(arglst[2]), float(arglst[3]), float(arglst[4]))
-                    for i in range(len(result)):
-                        if i != 3:
-                            print(str(result[i]) + '\n')
-                        else:
-                            print(str(result[i]))
+                result = reconcile(arglst[1], float(arglst[2]), float(arglst[3]), float(arglst[4]))
+                for i in range(len(result)):
+                    if i != 3:
+                        print(str(result[i]) + '\n')
+                    else:
+                        print(str(result[i]))
             except ValueError:
                 print(usage())
             except IOError:
