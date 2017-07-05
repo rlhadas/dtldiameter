@@ -103,7 +103,7 @@ def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
     bestSwitchLocations = {}
 
     # Calculates and keeps track of the frequency scoring of each event
-    Score = {}
+    #Score = {}
 
     # Following logic taken from tech report, we loop over all ep and eh
     for ep in postorder(parasiteTree, "pTop"):
@@ -160,11 +160,11 @@ def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
                     Amin = [("C", (None, None), (None, None), 1.0)]
 
                     # Give a frequency of 1 to this event
-                    Score[(vp, vh)] = 1.0
+                    #Score[(vp, vh)] = 1.0
                 else:
 
                     # Non-matched tips can't reconcile
-                    Score[(vp, vh)] = Infinity
+                    #Score[(vp, vh)] = Infinity
                     A[(ep, eh)] = Infinity
                     Amin = [Infinity]
             else:
@@ -179,16 +179,16 @@ def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
                     coMin = []  # List to keep track lowest cost speciation
                     if COepeh == C[(ep2, eh1)] + C[(ep1, eh2)]:
                         coMin.append(("S", (pChild2, hChild1),
-                                      (pChild1, hChild2), (Score[(pChild2, hChild1)] *
-                                                           Score[(pChild1, hChild2)])))
+                                      (pChild1, hChild2), 0))#(Score[(pChild2, hChild1)] *
+                                                          # Score[(pChild1, hChild2)])))
                     if COepeh == C[(ep1, eh1)] + C[(ep2, eh2)]:
                         coMin.append(("S", (pChild1, hChild1),
-                                      (pChild2, hChild2), (Score[(pChild1, hChild1)] *
-                                                           Score[(pChild2, hChild2)])))
+                                      (pChild2, hChild2), 0))#(Score[(pChild1, hChild1)] *
+                                                           #Score[(pChild2, hChild2)])))
                 else:
                     COepeh = Infinity
                     coMin = [Infinity]
-                    Score[(vp, vh)] = Infinity
+                    #Score[(vp, vh)] = Infinity
 
                 # Compute L and create event list to add to eventsDict
                 LOSSepeh = L + min(C[(ep, eh1)], C[(ep, eh2)])
@@ -197,10 +197,10 @@ def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
                 # Check which (or maybe both) option produces the minimum
                 if LOSSepeh == L + C[(ep, eh1)]:
                     lossMin.append(("L", (vp, hChild1), (None, None),
-                                    Score[(vp, hChild1)]))
+                                    0))#Score[(vp, hChild1)]))
                 if LOSSepeh == L + C[(ep, eh2)]:
                     lossMin.append(("L", (vp, hChild2), (None, None),
-                                    Score[(vp, hChild2)]))
+                                    0))#Score[(vp, hChild2)]))
 
                 # Determine which event occurs for A[(ep, eh)]
                 A[(ep, eh)] = min(COepeh, LOSSepeh)
@@ -223,7 +223,7 @@ def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
 
                 # List to keep track of lowest cost duplication event
                 dupList = ("D", (pChild1, vh), (pChild2, vh),
-                           (Score[(pChild1, vh)] * Score[(pChild2, vh)]))
+                           0) #(Score[(pChild1, vh)] * Score[(pChild2, vh)]))
             else:
                 DUPepeh = Infinity
                 dupList = [Infinity]
@@ -249,14 +249,14 @@ def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
                         currentLoc = location[1]
 
                         # Proposed switch to a leaf, which is an impossible event
-                        if currentLoc is None:
-                            Score[(pChild1, currentLoc)] = Infinity
-                            Score[(pChild2, currentLoc)] = Infinity
+                        #if currentLoc is None:
+                            #Score[(pChild1, currentLoc)] = Infinity
+                            #Score[(pChild2, currentLoc)] = Infinity
 
                         # Append the proposed event to the list of possible switches
                         switchList.append(("T", (pChild1, vh), (pChild2,
-                                           currentLoc), (Score[(pChild1, vh)] *
-                                                         Score[(pChild2, currentLoc)])))
+                                           currentLoc), 0))#(Score[(pChild1, vh)] *
+                                                         #Score[(pChild2, currentLoc)])))
 
                 # If ep1 switching has the lowest cost or equal to the other
                 elif (C[(ep2, eh)] + bestSwitch[(ep1, eh)]) <= (C[(ep1, eh)] +
@@ -270,14 +270,14 @@ def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
                         currentLoc = location[1]
 
                         # Proposed switch to a leaf, which is an impossible event
-                        if currentLoc is None:
-                            Score[(pChild1, currentLoc)] = Infinity
-                            Score[(pChild2, currentLoc)] = Infinity
+                        #if currentLoc is None:
+                            #Score[(pChild1, currentLoc)] = Infinity
+                            #Score[(pChild2, currentLoc)] = Infinity
 
                         # Append the proposed event to the list of possible switches
                         switchList.append(("T", (pChild2, vh),
-                                           (pChild1, currentLoc), (Score[(pChild2, vh)] *
-                                                                   Score[(pChild1, currentLoc)])))
+                                           (pChild1, currentLoc), 0))#(Score[(pChild2, vh)] *
+                                                                  # Score[(pChild1, currentLoc)])))
             else:  # vp is a tip
                 SWITCHepeh = Infinity
                 switchList = [Infinity]
@@ -302,20 +302,21 @@ def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
             # Scan through all of the keys (e.g. (a, A)) recorded so far
             # Note an event is stored in eventsDict in the form
             # [event (str), pair1 (tuple, str), pair2 (tuple, str), score (float)]
-            for key in eventsDict:
+
+            #for key in eventsDict:
                 mapScore = 0  # Initialize frequency scoring for each event
 
                 # Search the dict for events related to the current key
-                for event in eventsDict[key]:
+                #for event in eventsDict[key]:
 
                     # This filters actual events, since events are stored as lists
-                    if isinstance(event, tuple):
+                    #if isinstance(event, tuple):
 
                         # Frequency scores are the last element, and that's what this extracts
-                        mapScore += event[-1]
+                        #mapScore += event[-1]
 
                 # Accumulate that and set it as the score for the current key
-                Score[key] = mapScore
+                #Score[key] = mapScore
 
             # Remove all 'impossible' events from the options
             if minCost[(vp, vh)] == Infinity:
@@ -411,13 +412,13 @@ def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
 
     # Consider whether the user wanted to use the Scores
     if useScores:
-
+        assert False
         # Filter values from the score dictionary so it can be passed to addScores
-        for key in Score.keys():
-            if key not in DTLReconGraph:
-                del Score[key]
+    #    for key in Score.keys():
+    #        if key not in DTLReconGraph:
+    #            del Score[key]
 
-        DTLReconGraph, nMPRs = addScores(treeMin, DTLReconGraph, Score)  # Less efficient method of computing nMPRs
+    #    DTLReconGraph, nMPRs = addScores(treeMin, DTLReconGraph, Score)  # Less efficient method of computing nMPRs
 
         # Make sure nMPRs is represented as an int - the result will always be an integer value
         nMPRs = int(nMPRs)
@@ -425,6 +426,8 @@ def DP(hostTree, parasiteTree, phi, D, T, L, useScores=False):
     # If not, suppress score from the output
     else:
         for mappingNode in DTLReconGraph:  # Search over all nodes in the recon graph
+            assert not isinstance(DTLReconGraph[mappingNode][-1], (tuple, list))
+
             for event in range(len(DTLReconGraph[mappingNode]) - 1):  # Search over all events for each node
                 # Note we do len(... - 1) because the last element isn't an event, it's the min cost (defined above)
 
@@ -572,7 +575,6 @@ def addScores(treeMin, DTLReconGraph, ScoreDict):
             newDTL[key][:-1][-1] = event[-1] / normalize
 
     return newDTL, normalize
-
 
 def countMPRsWrapper(mappingNodeLst, DTLReconGraph):
     """
