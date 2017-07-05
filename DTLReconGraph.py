@@ -575,7 +575,6 @@ def addScores(treeMin, DTLReconGraph, ScoreDict):
 
     return newDTL, normalize
 
-
 def countMPRsWrapper(mappingNodeLst, DTLReconGraph):
     """
     :param mappingNodeLst: output from findBestRoots, a list of mapping
