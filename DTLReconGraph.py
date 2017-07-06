@@ -175,7 +175,6 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                     COepeh = Infinity
                     coMin = [Infinity]
 
-
                 # Compute L and create event list to add to eventsDict
                 LOSSepeh = L + min(C[(ep, eh1)], C[(ep, eh2)])
                 lossMin = []  # List to keep track of lowest cost loss
@@ -185,7 +184,6 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                     lossMin.append(("L", (vp, hChild1), (None, None)))
                 if LOSSepeh == L + C[(ep, eh2)]:
                     lossMin.append(("L", (vp, hChild2), (None, None)))
-
 
                 # Determine which event occurs for A[(ep, eh)]
                 A[(ep, eh)] = min(COepeh, LOSSepeh)
@@ -286,8 +284,8 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
 
                 # oMin helps us easily find which value (between C, O for child 1, and O for child 2) produces
                 # O for this edge. Knowing what its indices represent, we search through to see which produce O
-                oMin = [i for i, e in enumerate([C[(ep, eh)], O[(ep, eh1)], O[(ep, eh2)]])
-                        if e == O[(ep, eh)]]
+                oMin = [ind for ind, elem in enumerate([C[(ep, eh)], O[(ep, eh1)], O[(ep, eh2)]])
+                        if elem == O[(ep, eh)]]
 
                 # Corresponds to C
                 if 0 in oMin:
