@@ -151,6 +151,7 @@ import time
 import csv
 import os.path
 from collections import OrderedDict
+from itertools import product
 
 # Used for command line arguments:
 
@@ -203,7 +204,8 @@ def find_paths_ending_past_here(current_edge, previous_edges, tree):
      :param tree:           The (edge-based) tree in its entirety.
      :return:               A dictionary that is keyed by path and contains lists of edges for each path."""
 
-    next_edges = previous_edges + [current_edge]  # This list contains every node we visited to get here from the current_edge
+    # This list contains every node we visited to get here from the current_edge
+    next_edges = previous_edges + [current_edge]
     path_edges = {}  # This is the edges contained in each path.
     for i in range(0, len(next_edges)):
         source_node = next_edges[i]
@@ -338,15 +340,6 @@ def build_exit_dicts(dtl_recon_graph):
 
     return exit_events_by_mapping, exit_events_by_gene, exit_mappings_by_gene
 
-def calculate_ancestral_table(species_tree):
-    a_t = {}
-    for n1 in species_tree:
-        a_t[n1] = {}
-        for n2 in species_tree:
-            a_t[n1][n2] = "eq"
-    return a_t
-    # TODO
-
 
 def intersect_cost(event):
     return 0
@@ -354,6 +347,71 @@ def intersect_cost(event):
 def cost(event):
     return 1
 
+
+def calculate_ancestral_table(species_tree):
+    """
+    :param species_tree: a species tree, in vertex format and postorder,
+    represented as an OrderedDict (output from reformat_tree)
+    :return: A nested dictionary. The first dictionary has vertices in the
+    tree as keys and the values are dictionaries. These dictionaries have
+    as keys vertices of the tree (again) and values which are strings,
+    representing how the first index relates to the second (see below
+    for info on what certain strings mean). It creates these dictionaries
+    by traversing the tree.
+    """
+
+    # Initialize the ancestral table which we will be returning
+    ancestral_table = dict()
+
+    # Helper dict to help us determine if two nodes are ancestrally related
+    descendants = dict()
+
+    # Get all of the vertices in the tree
+    vertices = [vertex for vertex in species_tree]
+
+    # Initialize all entries to incomparable to make following calculations easier
+    for pair in list(product(vertices, vertices)):  # Cartesian product of all of the vertices
+
+        # Save variables to match format used in previous discussions of this new algorithm
+        A = pair[0]
+        B = pair[1]
+
+        # Check if we need to make a dictionary for the first vertex
+        if A not in ancestral_table:
+            ancestral_table[A] = dict()
+
+        # Set all identical pairs to equal while we're in this loop - check for equality here
+        if A == B:
+            ancestral_table[A][B] = 'eq'
+
+        else:
+
+            # Set all other pairs to incomparable
+            ancestral_table[A][B] = 'in'
+
+    # Now loop over all vertex pairs checking for ancestral connections
+    for v in vertices:
+
+        # Save the vertices that represent the children into variables
+        child1 = species_tree[v][0]
+        child2 = species_tree[v][1]
+
+        # Check for leaf nodes
+        if child1 is None and child2 is None:
+            descendants[v] = []  # Empty list --> no descendants
+
+        else:
+
+            # The descendants of a node are the direct children and those children's children, and so on
+            descendants[v] = descendants[child1] + descendants[child2] + [child1] + [child2]
+
+            # Assign relationship between a node and its descendants, and vice versa
+            for descendant in descendants[v]:
+                ancestral_table[v][descendant] = 'an'
+                ancestral_table[descendant][v] = 'des'
+
+    return ancestral_table
+  
 def calculate_score_double_exit(enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b):
     """This function computes the score of a 'double exit', where both mapping nodes exit immediately."""
     score_double_exit = float('-inf')
@@ -458,7 +516,7 @@ def compute_ancestral_single_exit(is_swapped, enter_table, u, uA, uA_loss_events
             enter_scores += enter_table[u][uA][(u, b_child)] + cost(event)
         enter_table[u][uA][uB] = max(enter_scores)
 
-
+# Note species tree is assumed to be in vertex format
 def new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph_a, dtl_recon_graph_b, debug, zero_loss):
 
     # TODO Precompute ancestor table for host tree
@@ -521,14 +579,14 @@ def event_to_string(event):
                                       str(event[2][0]), str(event[2][1]))
 
 
-def print_table_nicely(table, deliminator, name="\t", type="map"):
+def print_table_nicely(table, deliminator, name="\t", dtype="map"):
     """Takes a table (a 2D dict keyed with tuples) and prints a nicely formatted table. Used for debugging and wall art.
     :param table:       The table we wish to print nicely. It is assumed that the rows and columns are exactly the same,
                         and that both the keys and values will fit within 7 characters (room for one tab space)
                         It is also assumed that the keys are tuples of some kind.
     :param deliminator: What string to put in between the elements of the tuples
     :param name:        What this table should be named (upper left)
-    :param type:        A string corresponding to the type of data. Valid values are 'event', 'path', and 'map'.
+    :param dtype:        A string corresponding to the type of data. Valid values are 'event', 'path', and 'map'.
     :return:            Nothing, but prints to the screen a lot.
     """
 
@@ -539,9 +597,9 @@ def print_table_nicely(table, deliminator, name="\t", type="map"):
 
     line = "\033[4m{0}\033[1m".format(name)  # Underline top row, bold column headers
     for column in table:
-        if type == "event":
+        if dtype == "event":
             line += "\t{0}".format(event_to_string(column))
-        elif type == "path":
+        elif dtype == "path":
             line += "\t{0}{1}{2}{3}{4}".format(column[0][0], column[0][1], deliminator, column[1][0], column[1][1])
         else:
             line += "\t{0}{1}{2}".format(str(column[0]), deliminator, str(column[1]))
@@ -554,9 +612,9 @@ def print_table_nicely(table, deliminator, name="\t", type="map"):
         line_color = "\033[37m" if row_num % 2 == 0 else "\033[0m"
 
         line = line_color + "\t\033[4m\033[1m"  # Add bolding and underline to row headers
-        if type == "event":
+        if dtype == "event":
             line += "{0}".format(event_to_string(row))
-        elif type == "path":
+        elif dtype == "path":
             line += "{0}{1}{2}{3}{4}".format(row[0][0], row[0][1], deliminator, row[1][0], row[1][1])
         else:
             line += "{0}{1}{2}".format(str(row[0]), deliminator, str(row[1]))
@@ -590,9 +648,6 @@ def clean_graph(dtl_recon_graph, gene_tree_root):
         # DTLReconGraph should be filtering the loss events on the root node out, so we don't need to worry about it
         # if key[0] == gene_tree_root:
             # dtl_recon_graph[key] = filter(lambda e: not e[0] == 'L', dtl_recon_graph[key])
-
-
-
 
 
 def write_to_csv(csv_file, costs, filename, mpr_count, diameter, gene_node_count,
@@ -648,7 +703,6 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     # Get everything we need from DTLReconGraph
     species_tree, gene_tree, dtl_recon_graph, mpr_count = DTLReconGraph.reconcile(filename, D, T, L)
 
-
     # Record the time that this code starts
 
     # The gene tree needs to be in node format, not edge format, so we find that now.
@@ -657,7 +711,6 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
 
     # The DTL reconciliation graph as provided by DTLReconGraph has some extraneous numbers. We remove those here.
     clean_graph(dtl_recon_graph, gene_tree_root)
-
 
     # And record the amount of time DTLReconGraph + cleaning up the graph took
     DTLReconGraph_time_taken = time.clock() - start_time
