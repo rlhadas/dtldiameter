@@ -152,7 +152,7 @@ import csv
 import os.path
 from collections import OrderedDict
 from itertools import product
-
+from DTLMedian import preorderMappingNodeSort
 # Used for command line arguments:
 
 import sys
@@ -460,10 +460,10 @@ def compute_incomparable_single_exit(enter_table, u, uA, uA_loss_events, uB, uB_
     scores = [score_double_exit]
     for event in uA_loss_events:
         a_child = event[1][1]
-        scores += enter_table[u][(u, a_child)][uB] + cost(event)
+        scores += [enter_table[u][(u, a_child)][uB] + cost(event)]
     for event in uB_loss_events:
         b_child = event[1][1]
-        scores += enter_table[u][uA][(u, b_child)] + cost(event)
+        scores += [enter_table[u][uA][(u, b_child)] + cost(event)]
     enter_table[u][uA][uB] = max(scores)
 
 
@@ -475,14 +475,14 @@ def compute_equal_single_exit(enter_table, u, uA, uA_loss_events, uB, uB_loss_ev
         a_child = a_event[1][1]
         for b_event in uB_loss_events:
             b_child = b_event[1][1]
-            scores += enter_table[u][(u, a_child)][(u, b_child)]
+            scores += [enter_table[u][(u, a_child)][(u, b_child)]]
 
     for event in uA_loss_events:
         a_child = event[1][1]
-        scores += single_exit_table[u][uB][(u, a_child)] + cost(event)
+        scores += [single_exit_table[u][uB][(u, a_child)] + cost(event)]
     for event in uB_loss_events:
         b_child = event[1][1]
-        scores += single_exit_table[u][uA][(u, b_child)] + cost(event)
+        scores += [single_exit_table[u][uA][(u, b_child)] + cost(event)]
     enter_table[u][uA][uB] = max(scores)
 
 
@@ -496,53 +496,54 @@ def compute_ancestral_single_exit(is_swapped, enter_table, u, uA, uA_loss_events
     if not is_swapped:
         for event in uB_loss_events:
             b_child = event[1][1]
-            scores += single_exit_table[u][uA][(u, b_child)] + cost(event)
+            scores += [single_exit_table[u][uA][(u, b_child)] + cost(event)]
+        if not uA in single_exit_table[u]:
+            single_exit_table[u][uA] = {}
         single_exit_table[u][uA][uB] = max(scores)
 
         enter_scores = [single_exit_table[u][uA][uB]]
         for event in uA_loss_events:
             a_child = event[1][1]
-            enter_scores += enter_table[u][(u, a_child)][uB] + cost(event)
+            enter_scores += [enter_table[u][(u, a_child)][uB] + cost(event)]
         enter_table[u][uA][uB] = max(enter_scores)
     else:
         for event in uA_loss_events:
             a_child = event[1][1]
-            scores += single_exit_table[u][uB][(u, a_child)] + cost(event)
+            scores += [single_exit_table[u][uB][(u, a_child)] + cost(event)]
+        if not uB in single_exit_table[u]:
+            single_exit_table[u][uB] = {}
         single_exit_table[u][uB][uA] = max(scores)
 
         enter_scores = [single_exit_table[u][uB][uA]]
         for event in uB_loss_events:
             b_child = event[1][1]
-            enter_scores += enter_table[u][uA][(u, b_child)] + cost(event)
+            enter_scores += [enter_table[u][uA][(u, b_child)] + cost(event)]
         enter_table[u][uA][uB] = max(enter_scores)
 
 # Note species tree is assumed to be in vertex format
 def new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph_a, dtl_recon_graph_b, debug, zero_loss):
 
-    # TODO Precompute ancestor table for host tree
-
-    # TODO get postorder lists
-
-    postorder_gene_nodes = reversed(gene_tree.keys())
+    postorder_gene_nodes = list(gene_tree.keys())
+    postorder_species_nodes = list(species_tree.keys())
     postorder_group_a = {}
     postorder_group_b = {}
     for u in gene_tree:
-        postorder_group_a[u] = filter(lambda mapping : mapping[0] == u, dtl_recon_graph_a)
-        postorder_group_b[u] = filter(lambda mapping : mapping[0] == u, dtl_recon_graph_b)
+        postorder_group_a[u] = filter(lambda mapping: mapping[0] == u, dtl_recon_graph_a)
+        postorder_group_a[u] = sorted(postorder_group_a[u], key=lambda mapping: postorder_species_nodes.index(mapping[1]))
+        postorder_group_b[u] = filter(lambda mapping: mapping[0] == u, dtl_recon_graph_b)
+        postorder_group_b[u] = sorted(postorder_group_b[u], key=lambda mapping: postorder_species_nodes.index(mapping[1]))
     ancestral_table = calculate_ancestral_table(species_tree)
     single_exit_table = {}
     enter_table = {}
-
     for u in postorder_gene_nodes:
         enter_table[u] = {}
-
-        print postorder_group_a[u]
-        print postorder_group_b[u]
+        single_exit_table[u] = {}
         for uA in postorder_group_a[u]:
+            enter_table[u][uA] = {}
             for uB in postorder_group_b[u]:
                 score_double_exit = calculate_score_double_exit(enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b)
-
-                ancestry = ancestral_table[uA][uB]
+                #print "{0} - {1}".format(uA, uB)
+                ancestry = ancestral_table[uA[1]][uB[1]]
 
                 uA_loss_events = filter(lambda event: isinstance(event, tuple) and event[0] == 'L',
                                         dtl_recon_graph_a[uA])
@@ -565,7 +566,8 @@ def new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_gr
                                                   score_double_exit, single_exit_table)
                 else:
                     raise ValueError("Invalid ancestry type '{0}', check calculate_ancestral_table().".format(ancestry))
-
+        if debug:
+            print_table_nicely(enter_table[u], ", ", "EnterTable({0})".format(u))
     # Now, the diameter of this reconciliation will be the maximum entry on the enter table.
     diameter = 0
     for uA in enter_table[gene_tree_root]:
@@ -709,6 +711,8 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     # (This also puts the gene_tree into postorder, as an ordered dict)
     gene_tree, gene_tree_root, gene_node_count = reformat_tree(gene_tree, "pTop")
 
+    species_tree, species_tree_root, species_node_count = reformat_tree(species_tree, "hTop")
+
     # The DTL reconciliation graph as provided by DTLReconGraph has some extraneous numbers. We remove those here.
     clean_graph(dtl_recon_graph, gene_tree_root)
 
@@ -726,12 +730,12 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     # And record how long it took to compute the diameter.
     diameter_time_taken = time.clock() - start_time
 
-    start_time = time.clock()
-    zl_diameter = new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph, dtl_recon_graph, debug, True)
-    zl_diameter_time_taken = time.clock()-start_time
+    #start_time = time.clock()
+    #zl_diameter = new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph, dtl_recon_graph, debug, True)
+    #zl_diameter_time_taken = time.clock()-start_time
 
     if verbose:
-        print "The diameter of the given reconciliation graph is \033[33m\033[1m{0}\033[0m, (or \033[33m\033[1m{1}\033[0m if losses do not affect the diameter)".format(diameter, zl_diameter)
+        print "The diameter of the given reconciliation graph is \033[33m\033[1m{0}\033[0m, (or \033[33m\033[1m{1}\033[0m if losses do not affect the diameter)".format(diameter, diameter)#zl_diameter)
 
     # Timing data is inaccurate in debug mode (print statements take too long), so we only give it to the user in non-
     # debug mode.
@@ -743,8 +747,8 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     if log is not None:
         costs = "D: {0} T: {1} L: {2}".format(D, T, L)
         write_to_csv(log + ".csv", costs, filename, mpr_count, diameter, gene_node_count, DTLReconGraph_time_taken, diameter_time_taken)
-        write_to_csv(log + "_zl.csv", costs, filename, mpr_count, zl_diameter, gene_node_count, DTLReconGraph_time_taken,
-                     zl_diameter_time_taken)
+        #write_to_csv(log + "_zl.csv", costs, filename, mpr_count, zl_diameter, gene_node_count, DTLReconGraph_time_taken,
+         #            zl_diameter_time_taken)
     # And we're done.
     return
 
@@ -819,8 +823,8 @@ def main():
     else:
         calculate_diameter_from_file(file, d, t, l, log, debug, verbose)
 
-if __name__ == "__main__" and False:
+if __name__ == "__main__":
     main()
 
-def t():
-    calculate_diameter_from_file('le1', 1, 4, 1)
+def t(file_name):
+    calculate_diameter_from_file(file_name, 2, 3, 1)
