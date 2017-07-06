@@ -1,6 +1,10 @@
-# Diameter.py
-# Written by Eli Zupke and Andrew Ramirez June 2017
+# NewDiameter.py
+# Written by Eli Zupke and Andrew Ramirez July 2017
 # It is based off of Jordan Haack's work on a polynomial-time algorithm for the DTL MPR Diameter Problem
+
+# TODO: Update header
+
+# TODO: provide ancestry details.
 
 # 0. ON THE PAPER
 #
@@ -334,20 +338,126 @@ def build_exit_dicts(dtl_recon_graph):
 
     return exit_events_by_mapping, exit_events_by_gene, exit_mappings_by_gene
 
-def calculate_ancestral_table():
+def calculate_ancestral_table(species_tree):
+    a_t = {}
+    for n1 in species_tree:
+        a_t[n1] = {}
+        for n2 in species_tree:
+            a_t[n1][n2] = "eq"
+    return a_t
     # TODO
 
-def calculate_score_double_exit():
-    # TODO
 
-def compute_incomparable_single_exit():
-    # TODO
+def intersect_cost(event):
+    return 0
 
-def compute_equal_single_exit():
-    # TODO
+def cost(event):
+    return 1
 
-def compute_ancestral_single_exit():
-    # TODO
+def calculate_score_double_exit(enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b):
+    """This function computes the score of a 'double exit', where both mapping nodes exit immediately."""
+    score_double_exit = float('-inf')
+
+    # Test to see if u is a leaf
+    if gene_tree[u] == (None, None):
+        #TODO: Why do we need to check for contemporaneous events?
+        if uA == uB and ('C', (None, None), (None, None)) in dtl_recon_graph_a[uA]:
+            score_double_exit = 0
+    else:
+        uA_exit_events = filter(lambda event: isinstance(event, tuple) and event[0] not in ('C', 'L'),
+                                dtl_recon_graph_a[uA])
+        uB_exit_events = filter(lambda event: isinstance(event, tuple) and event[0] not in ('C', 'L'),
+                                dtl_recon_graph_b[uB])
+        for e1 in uA_exit_events:
+            child1 = e1[1][0]
+            child2 = e1[2][0]
+            # B and C are the species nodes of the two mapping nodes of e1
+            B = e1[1][1]
+            C = e1[2][1]
+            for e2 in uB_exit_events:
+                # E and F are the species nodes of the two mapping nodes of e2
+                # We need to account for the case that the children of u are in opposite order between the two events
+                if child1 == e2[1][0]:
+                    E = e2[1][1]
+                    F = e2[2][1]
+                else:
+                    E = e2[2][1]
+                    F = e2[1][1]
+                # Now, we need to turn the species nodes into the correct mapping nodes
+                uB = (child1, B)
+                uE = (child1, E)
+                uC = (child2, C)
+                uF = (child2, F)
+                # If the score of this iteration's double exit is better than the old one, then the old one will
+                # supersede this one
+                score_double_exit = max(score_double_exit,
+                                        enter_table[child1][uB][uE] + enter_table[child2][uC][uF] \
+                                        + (cost(e1) + cost(e2) if e1 != e2 else intersect_cost(0)))
+
+    return score_double_exit
+
+
+def compute_incomparable_single_exit(enter_table, u, uA, uA_loss_events, uB, uB_loss_events, score_double_exit):
+
+    scores = [score_double_exit]
+    for event in uA_loss_events:
+        a_child = event[1][1]
+        scores += enter_table[u][(u, a_child)][uB] + cost(event)
+    for event in uB_loss_events:
+        b_child = event[1][1]
+        scores += enter_table[u][uA][(u, b_child)] + cost(event)
+    enter_table[u][uA][uB] = max(scores)
+
+
+def compute_equal_single_exit(enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
+                              score_double_exit, single_exit_table):
+    assert uA == uB
+    scores = [score_double_exit]
+    for a_event in uA_loss_events:
+        a_child = a_event[1][1]
+        for b_event in uB_loss_events:
+            b_child = b_event[1][1]
+            scores += enter_table[u][(u, a_child)][(u, b_child)]
+
+    for event in uA_loss_events:
+        a_child = event[1][1]
+        scores += single_exit_table[u][uB][(u, a_child)] + cost(event)
+    for event in uB_loss_events:
+        b_child = event[1][1]
+        scores += single_exit_table[u][uA][(u, b_child)] + cost(event)
+    enter_table[u][uA][uB] = max(scores)
+
+
+def compute_ancestral_single_exit(is_swapped, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
+                              score_double_exit, single_exit_table):
+    scores = [score_double_exit]
+
+    # We check to see if which mapping node is the ancestor is swapped from uA an uB to uB an uA. We can't just
+    # swap the arguments in that case unfortunately, because enter_table requires the two arguments be entered in the
+    # correct direction.
+    if not is_swapped:
+        for event in uB_loss_events:
+            b_child = event[1][1]
+            scores += single_exit_table[u][uA][(u, b_child)] + cost(event)
+        single_exit_table[u][uA][uB] = max(scores)
+
+        enter_scores = [single_exit_table[u][uA][uB]]
+        for event in uA_loss_events:
+            a_child = event[1][1]
+            enter_scores += enter_table[u][(u, a_child)][uB] + cost(event)
+        enter_table[u][uA][uB] = max(enter_scores)
+    else:
+        for event in uA_loss_events:
+            a_child = event[1][1]
+            scores += single_exit_table[u][uB][(u, a_child)] + cost(event)
+        single_exit_table[u][uB][uA] = max(scores)
+
+        enter_scores = [single_exit_table[u][uB][uA]]
+        for event in uB_loss_events:
+            b_child = event[1][1]
+            enter_scores += enter_table[u][uA][(u, b_child)] + cost(event)
+        enter_table[u][uA][uB] = max(enter_scores)
+
 
 def new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph_a, dtl_recon_graph_b, debug, zero_loss):
 
@@ -355,32 +465,56 @@ def new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_gr
 
     # TODO get postorder lists
 
-    postorder_gene_nodes = []
+    postorder_gene_nodes = reversed(gene_tree.keys())
     postorder_group_a = {}
     postorder_group_b = {}
-
-    ancestral_table = calculate_ancestral_table()
+    for u in gene_tree:
+        postorder_group_a[u] = filter(lambda mapping : mapping[0] == u, dtl_recon_graph_a)
+        postorder_group_b[u] = filter(lambda mapping : mapping[0] == u, dtl_recon_graph_b)
+    ancestral_table = calculate_ancestral_table(species_tree)
     single_exit_table = {}
-    entry_table = {}
+    enter_table = {}
 
     for u in postorder_gene_nodes:
+        enter_table[u] = {}
+
+        print postorder_group_a[u]
+        print postorder_group_b[u]
         for uA in postorder_group_a[u]:
             for uB in postorder_group_b[u]:
-                score_double_exit = calculate_score_double_exit()
+                score_double_exit = calculate_score_double_exit(enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b)
 
                 ancestry = ancestral_table[uA][uB]
 
+                uA_loss_events = filter(lambda event: isinstance(event, tuple) and event[0] == 'L',
+                                        dtl_recon_graph_a[uA])
+                uB_loss_events = filter(lambda event: isinstance(event, tuple) and event[0] == 'L',
+                                        dtl_recon_graph_b[uB])
+
+                # To compute the proper single exit entry, we must know how the two nodes relate to each other. See the
+                # header for a more complete explanation on this.
                 if ancestry == 'in':
-                    compute_incomparable_single_exit()
+                    compute_incomparable_single_exit(enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
+                                                     score_double_exit)
                 elif ancestry == 'eq':
-                    compute_equal_single_exit()
+                    compute_equal_single_exit(enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
+                                              score_double_exit, single_exit_table)
                 elif ancestry == 'des':
-                    compute_ancestral_single_exit(True)
+                    compute_ancestral_single_exit(True, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
+                                                  score_double_exit, single_exit_table)
                 elif ancestry == 'an':
-                    compute_ancestral_single_exit(False)
+                    compute_ancestral_single_exit(False, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
+                                                  score_double_exit, single_exit_table)
                 else:
                     raise ValueError("Invalid ancestry type '{0}', check calculate_ancestral_table().".format(ancestry))
 
+    # Now, the diameter of this reconciliation will be the maximum entry on the enter table.
+    diameter = 0
+    for uA in enter_table[gene_tree_root]:
+        for uB in enter_table[gene_tree_root][uA]:
+            diameter = max(diameter, enter_table[gene_tree_root][uA][uB])
+
+    return diameter
 
 def event_to_string(event):
     return "{0}:{1}{2} {3}{4}".format(str(event[0]), str(event[1][0]), str(event[1][1]),
@@ -632,5 +766,8 @@ def main():
     else:
         calculate_diameter_from_file(file, d, t, l, log, debug, verbose)
 
-if __name__ == "__main__":
+if __name__ == "__main__" and False:
     main()
+
+def t():
+    calculate_diameter_from_file('le1', 1, 4, 1)
