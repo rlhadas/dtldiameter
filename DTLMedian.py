@@ -1,9 +1,7 @@
 # DTLMedian.py
-# Written by Andrew Ramirez and Eli Zupke
+# Written July 2017 by Andrew Ramirez and Eli Zupke
 # Utilizes previous code to find the "median" reconciliation of a pair of gene and species trees
 
-# ReconGraphProperties.py
-# Written July 2017 by Andrew Ramirez and Eli Zupkes
 
 # -1. DATA STRUCTURE QUICK REFERENCE:
 #
@@ -95,20 +93,16 @@ def generateScores(preorderMappingNodeList, DTLReconGraph, geneRoot):
 
     # The scored graph is like the DTLReconGraph, except instead of individual events being in a list, they are the
     # keys of a dictionary where the values are the frequency scores of those events.
-    scoredGraph = {}
+    eventScores = {}
 
     for mappingNode in preorderMappingNodeList:
-        scoredGraph[mappingNode] = {}
 
         # If we are at the root of the gene tree, then we need to initialise the score entry
         if mappingNode[0] == geneRoot:
             scores[mappingNode] = memo[mappingNode] / float(count)
-        calculateScoresForChildren(mappingNode, DTLReconGraph, scoredGraph, scores, memo)
-    for thing in scores:
-        if len(thing) > 2:
-            print "{0} : {1}".format(thing, scores[thing])
+        calculateScoresForChildren(mappingNode, DTLReconGraph, eventScores, scores, memo)
 
-    return scoredGraph, count
+    return eventScores, count
 
 
 def countMPRs(mappingNode, DTLReconGraph, memo):
@@ -174,13 +168,13 @@ def calculateScoresForChildren(mappingNode, DTLReconGraph, scoredGraph, scores, 
     # Iterate over every event
     for eventNode in events[:-1]:
 
-        scoredGraph[mappingNode][eventNode] = multiplier * memo[eventNode]
+        scoredGraph[eventNode] = multiplier * memo[eventNode]
 
         # Save the children produced by the current event
         mappingChild1 = eventNode[1]
         mappingChild2 = eventNode[2]
-        scores[mappingChild1] += scoredGraph[mappingNode][eventNode]
-        scores[mappingChild2] += scoredGraph[mappingNode][eventNode]
+        scores[mappingChild1] += scoredGraph[eventNode]
+        scores[mappingChild2] += scoredGraph[eventNode]
 
 
 def t(file="le1"):
