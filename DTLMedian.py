@@ -1,3 +1,7 @@
+# DTLMedian.py
+# Written by Andrew Ramirez and Eli Zupke
+# Utilizes previous code to find the "median" reconciliation of a pair of gene and species trees
+
 # ReconGraphProperties.py
 # Written July 2017 by Andrew Ramirez and Eli Zupkes
 
@@ -28,7 +32,9 @@
 #
 
 import DTLReconGraph as RG
-import Diameter
+import NewDiameter
+from operator import itemgetter
+
 
 def preorderMappingNodeSort(preorderGeneNodeList, preorderSpeciesList, mappingNodeList):
     """Sorts a list of mapping nodes into double preorder (the gene node is more significant than the species node, and)
@@ -54,6 +60,7 @@ def preorderMappingNodeSort(preorderGeneNodeList, preorderSpeciesList, mappingNo
     sortedList = sorted(mappingNodeList, key=lambda node: geneLevelLookup[node[0]] + speciesLevelLookup[node[1]])
 
     return sortedList
+
 
 def generateScores(preorderMappingNodeList, DTLReconGraph, geneRoot):
     """
@@ -84,7 +91,7 @@ def generateScores(preorderMappingNodeList, DTLReconGraph, geneRoot):
 
     # This entry is going to be thrown away, but it seems neater to just let calculateScoresOfChildren
     # add scores to an unused entry than to check to see if they are (None, None) in the first place.
-    scores[(None,None)] = 0.0
+    scores[(None, None)] = 0.0
 
     # The scored graph is like the DTLReconGraph, except instead of individual events being in a list, they are the
     # keys of a dictionary where the values are the frequency scores of those events.
@@ -102,7 +109,6 @@ def generateScores(preorderMappingNodeList, DTLReconGraph, geneRoot):
             print "{0} : {1}".format(thing, scores[thing])
 
     return scoredGraph, count
-
 
 
 def countMPRs(mappingNode, DTLReconGraph, memo):
@@ -176,13 +182,106 @@ def calculateScoresForChildren(mappingNode, DTLReconGraph, scoredGraph, scores, 
         scores[mappingChild2] += scoredGraph[mappingNode][eventNode]
 
 
-
 def t(file="le1"):
-    host, paras, graph, count = RG.reconcile(file,1,4,1)
-    preorderGeneList, geneRoot, _ = Diameter.reformat_tree(paras,"pTop")
-    preorderSpeciesList, speciesRoot, _ = Diameter.reformat_tree(host,"hTop")
-    preorderGeneList = reversed(preorderGeneList)
-    preorderSpeciesList = reversed(preorderSpeciesList)
-    preorderMappingNodeList = preorderMappingNodeSort(preorderGeneList, preorderSpeciesList,  graph.keys())
-    print generateScores(preorderMappingNodeList, graph, geneRoot)
-    print count
+    host, paras, graph, count, _ = RG.reconcile(file, 2, 3, 1)
+    preorderGeneList, geneRoot, _ = NewDiameter.reformat_tree(paras, "pTop")
+    preorderSpeciesList, speciesRoot, _ = NewDiameter.reformat_tree(host, "hTop")
+    preorderGeneList = reversed(preorderGeneList)  # Actually postorder before being reversed
+    preorderSpeciesList = reversed(preorderSpeciesList)  # Same as above
+    preorderMappingNodeList = preorderMappingNodeSort(preorderGeneList, preorderSpeciesList, graph.keys())
+    return generateScores(preorderMappingNodeList, graph, geneRoot)
+
+
+# TODO: fix bug
+def construct_median(DTLDict):
+    """"""
+
+
+def findMedian(DTLDict, postorderMappingNodes, MPRRoots):
+    """
+    :param DTLDict: A dictionary representing a DTL Recon Graph, but in a
+    different format than what would be returned in DTLReconGraph.py. This should be a nested dictionary
+    (as returned in the first value by generateScores), with keys being mapping nodes, and the values being
+    other dictionaries. Each of these inner dictionaries has event nodes as keys (which should have a key for
+    every event node corresponding to the previously indexed mapping node within a DTL Recon Graph) and
+    frequency scores as float values, in the range (0, 1].
+    :param postorderMappingNodes: A list of the mapping nodes in a possible MPR, except sorted first in
+    postorder by species node and postorder by gene node
+    :param MPRRoots: A list of mapping nodes that could act as roots to an MPR for the species and
+    gene trees in question, output from the findBestRoots function in DTLReconGraph.py
+    :return: A new dictionary which is has the same form as a DTL reconciliation graph except every
+    mapping node only has one event node. Thus, this graph will represent a single reconciliation: the
+    median reconciliation.
+    """
+    print(DTLDict)
+    print('')
+    # Note that for symmetric median reconciliation, each frequency must have 0.5 subtracted from it
+
+    # Initialize a dict that will store the running total frequency sum incurred up to the given mapping node,
+    # and the event node that directly gave it that frequency sum. Keys are mapping nodes, values are tuples
+    # consisting of an event node and the corresponding running total frequency sum up to that mapping node
+    sum_freqs = dict()
+
+    # Initialize the dict that will represent the passed dict in a form that can be used by buildDTLReconGraph from RG
+    DTLReconDict = dict()
+
+    # Initialize the variable to store the number of median reconciliations
+    n_med_recons = 0
+
+    # Loop over all mapping nodes for the gene tree
+    for map_node in postorderMappingNodes:
+
+        # Get the events for the current mapping node and their frequencies, in a tuple in that order
+        events = DTLDict[map_node].items()
+
+        # Easily find the event with the best frequency
+        best = max(events, key=itemgetter(1))
+
+        # Consider the children - and thus future event nodes - of the event
+        if best[0][0] == 'C':  # Check for a contemporaneous event
+            sum_freqs[map_node] = (best[0], 0.5)  # C events have freq 1, so 1 - 0.5 = 0.5
+        elif best[0][0] == 'L':  # Losses are also special since they produce only 1 child
+            sum_freqs[map_node] = (best[0], best[1] - 0.5 + sum_freqs[best[0][1]][1])  # Consider the child's score too
+        else:  # The only other cases to consider are speciation, duplication, or transfer, which have 2 children
+            sum_freqs[map_node] = (best[0], best[1] - 0.5 + sum_freqs[best[0][1]][1] + sum_freqs[best[0][2]][1])
+
+    # Get all possible roots of the graph, and their running frequency scores, in a list, for later use
+    possible_root_combos = [(root, sum_freqs[root][1]) for root in MPRRoots]
+
+    # Find the best root and frequency combo
+    best = max(possible_root_combos, key=itemgetter(1))
+
+    # Find the number of median reconciliations
+    for root in possible_root_combos:
+
+        # Best[1] is the best running total frequency found in the roots
+        if root[1] == best[1]:
+            n_med_recons += 1
+
+    # Now extract the actual root
+    # Note we convert it to a list so we can use it as input for buildDTLReconGraph from the file of the same name
+    med_root = [best[0]]
+
+    # Find the best root, of possible MPR start roots, to start on that gives the median
+    print(best[1])
+    print('')
+    # Convert the given DTLDict to a form that will play nice with DTLReconGraph
+    for mapping_node in DTLDict.keys():
+
+        # We need the garbage 0 value at the end for the dictionary to work with buildDTLReconGraph
+        DTLReconDict[mapping_node] = list(DTLDict[mapping_node].keys()) + [0]
+
+    # Build the final median reconciliation graph
+    med_recon_graph = RG.buildDTLReconGraph(med_root, DTLReconDict, {})
+
+    return med_recon_graph, n_med_recons
+
+
+def s(filename='example'):
+    h, p, g, _, bestRoots = RG.reconcile(filename, 2, 3, 1)
+    new_ptree = NewDiameter.reformat_tree(p, 'pTop')[0]
+    new_htree = NewDiameter.reformat_tree(h, 'hTop')[0]
+
+    result = findMedian(t(filename)[0], preorderMappingNodeSort(new_ptree, new_htree, g.keys()), bestRoots)
+
+    return result
