@@ -30,7 +30,7 @@ DP is the workhorse of the code - it utilizes several helper functions to actual
 
 #### Reconcile
 
-Reconcile is the more practically useful function. Since the data are implemented as newick trees and mappings, reconcile utilizes a separate module that both handles getting the data from a separate file and reformats the inputs to work nicely with DP. Reconcile reformat the species and gene trees to match the output format given in the section on running from the command line, and prints out these trees along with the reconciliation graph (again, in the format discussed above) and the number of Maximum Parsimony Reconciliations as an integer. Although one may play with any/all functions included in this file and those on which it depends, DP and reconcile are the most important functions.
+Reconcile is the more practically useful function. Since the data are implemented as newick trees and mappings, reconcile utilizes a separate module that both handles getting the data from a separate file and reformats the inputs to work nicely with DP. Reconcile reformat the species and gene trees to match the output format given in the section on running from the command line, and prints out these trees along with the reconciliation graph (again, in the format discussed above), the number of Maximum Parsimony Reconciliations as an integer, and a list of mappings (as tuples) of gene nodes onto species nodes that could produce an MPR. Although one may play with any/all functions included in this file and those on which it depends, DP and reconcile are the most important functions.
 
 ## How to use Diameter.py
 
