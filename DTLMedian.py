@@ -194,10 +194,6 @@ def t(file="le1"):
 
 
 # TODO: fix bug
-def construct_median(DTLDict):
-    """"""
-
-
 def findMedian(DTLDict, postorderMappingNodes, MPRRoots):
     """
     :param DTLDict: A dictionary representing a DTL Recon Graph, but in a
