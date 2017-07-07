@@ -136,15 +136,6 @@
 #
 #   path_edges:
 #       {path: [edge1, edge2, edge3, ...] ...}
-#
-#   exit_events_by_mapping:
-#       {mapping_node: [exit_event1, exit_event2, ...] ...}
-#
-#   exit_events_by_gene:
-#       {gene_node: [exit_event1, exit_event2, ...] ...}
-#
-#   exit_mappings_by_gene:
-#       {gene_node: [exit_mapping_node1, exit_mapping_node2, ...] ...}
 
 import DTLReconGraph
 import time
@@ -152,7 +143,6 @@ import csv
 import os.path
 from collections import OrderedDict
 from itertools import product
-from DTLMedian import preorderMappingNodeSort
 # Used for command line arguments:
 
 import sys
@@ -195,156 +185,15 @@ def reformat_tree(tree, root):
 
     return new_vertex_tree, new_root, (child1_count + child2_count + 1)
 
-def find_paths_ending_past_here(current_edge, previous_edges, tree):
-    """A recursive function to find all of the valid paths through a binary edge-based tree that end at or below a
-    currently examined edge, and the edges included in each path.
-     :param current_edge:   The edge we are examining in this function call
-     :param previous_edges: A list of the edges that you would traverse to get to current_edge from the root of the
-                            tree, in order
-     :param tree:           The (edge-based) tree in its entirety.
-     :return:               A dictionary that is keyed by path and contains lists of edges for each path."""
-
-    # This list contains every node we visited to get here from the current_edge
-    next_edges = previous_edges + [current_edge]
-    path_edges = {}  # This is the edges contained in each path.
-    for i in range(0, len(next_edges)):
-        source_node = next_edges[i]
-        # new_path becomes every path that ends in this value, including A->A
-        if i >= len(next_edges) - 1:
-            new_path = (tree[source_node][1], tree[source_node][1])  # An ugly hack to account for the top of the tree
-        else:
-            new_path = (tree[source_node][1], current_edge[1])  # This is what we should always be able to do
-        path_edges[new_path] = next_edges[i + 1:len(next_edges)]  # This is the list of edges
-
-    child1 = tree[current_edge][2]
-    child2 = tree[current_edge][3]
-
-    if child1 is not None:  # Then this Node is not a leaf Node, so we need to add this Node's children
-        child1_path_edges = find_paths_ending_past_here(child1, next_edges, tree)
-        child2_path_edges = find_paths_ending_past_here(child2, next_edges, tree)
-        child1_path_edges.update(child2_path_edges)
-        path_edges.update(child1_path_edges)
-        # Otherwise, we have reached the end of the tree (the base case)
-    return path_edges
-
-
-def find_valid_paths(root, tree):
-    """A function that uses find_paths_ending_past_here to find all of the valid paths on the given edge-based tree
-    and returns the list of paths, a dict containing the edges for each path, and a list of
-    non-trivial paths (where source != destination)
-    :param root:        The root node of the tree
-    :param tree:        The (edge-based) tree to find valid paths through
-    :return:            0: A dict containing the lists of edges contained in each vaild path across the tree, and
-                        1: A list of non-trivial paths (where the source is not the same as the destination) """
-
-    path_edges = find_paths_ending_past_here(root, [], tree)
-
-    # Strip out any trivial paths where source = destination (such as A->A). They have no path edges, so the length is
-    # zero.
-    non_trivial_path_list = filter(lambda x: len(path_edges[x]) > 0, path_edges.keys())
-    return path_edges, non_trivial_path_list
-
-
-def build_path_symmetric_set_difference_table(path_edges):
-    """Computes the table containing the number of nodes in the symmetric set difference between any two paths on the
-     species tree sTree. This is used in assigning a score to two paths' losses.
-     :param path_edges:     A dictionary containing the edges of every possible path, as created in find_valid_paths
-     :return:               A nested dictionary keyed by path, with values corresponding to the symmetric set
-                            difference between the edges of those paths."""
-
-    # Note: If you wish to modify the code to assign different scores for each gene node, modifying this function
-    # to provide the actual lists of nodes in the SSD might be a good place to start
-    # Alternatively, you could provide one symmetric_set_difference_table table per gene node in this function.
-
-    # This is the Symmetric Set Difference table we will be returning
-    symmetric_set_difference_table = {}
-
-    path_sets = {}
-
-    # Since we will need the frozenset of each path multiple times, it makes sense to pre-compute them
-    for path in path_edges:
-        path_sets[path] = frozenset(path_edges[path])
-
-    # To compute that table, we iterate over each combination of paths, and find the length of the symmetric set
-    # difference between the frozensets of their path edges.
-    for path_a in path_edges:
-        symmetric_set_difference_table[path_a] = {}
-        for path_b in path_edges:
-            symmetric_set_difference_table[path_a][path_b] = len(
-                path_sets[path_a].symmetric_difference(path_sets[path_b]))
-
-    # Note: symmetric_set_difference_table[a][b] should equal symmetric_set_difference_table[b][a]. A good optimization
-    #  of this function would take advantage of that property to only have to run ~half the computations
-
-    return symmetric_set_difference_table
-
-
-def build_lossless_path_symmetric_set_difference_table(path_edges):
-    """Works like build_path_symmetric_set_difference_table, but returns an SSD filled with all 0s
-    :param path_edges:  A dictionary containing the edges of every possible path, as created in find_valid_paths
-    :return:            A nested dictionary keyed by path, with values of 0
-    """
-
-    # This is the Symmetric Set Difference table we will be returning
-    symmetric_set_difference_table = {}
-
-    # To compute that table, we iterate over each combination of paths, and just enter 0.
-    for path_a in path_edges.keys():
-        symmetric_set_difference_table[path_a] = {}
-        for path_b in path_edges.keys():
-            symmetric_set_difference_table[path_a][path_b] = 0
-
-    return symmetric_set_difference_table
-
-
-def build_exit_dicts(dtl_recon_graph):
-    """This method goes through every exit event on the reconciliation graph, and builds up three dictionaries that
-    pertain to exit events.
-    :param dtl_recon_graph: The DTL reconciliaton graph
-    :return:    Three dictionaries:
-                0. exit_events_by_mapping, which is keyed by mapping node, and where every entry corresponds to a list
-                containing every exit event that is a child of that mapping node
-                1. exit_events_by_gene, which is keyed by gene node, and where every entry corresponds to a list
-                containing every exit event in the group of that gene node
-                2. exit_mappings_by_gene, which is keyed by gene node, and where every entry corresponds to a list
-                containing every mapping node in group of that gene node, on the condition that that mapping node
-                has an exit event
-    """
-    # These dicts are explained in the docstring directly above here.
-    exit_events_by_mapping = {}
-    exit_events_by_gene = {}
-    exit_mappings_by_gene = {}
-
-    # Here we iterate over every event node of every mapping node.
-    for mapping_node in dtl_recon_graph:
-        for event in dtl_recon_graph[mapping_node]:
-
-            # Ignore scores and loss events
-            if isinstance(event, tuple) and event[0] != 'L':
-
-                gene_node = mapping_node[0]
-                # For each of these three blocks, the if statement initializes the list if necessary, and then adds the
-                # correct element into the list
-                if gene_node not in exit_events_by_gene:
-                    exit_events_by_gene[gene_node] = []
-                # Use append to avoid adding the elements of the tuple themselves to the list
-                exit_events_by_gene[gene_node].append(event)
-
-                if gene_node not in exit_mappings_by_gene:
-                    exit_mappings_by_gene[gene_node] = []
-                exit_mappings_by_gene[gene_node] += [mapping_node]
-
-                if mapping_node not in exit_events_by_mapping:
-                    exit_events_by_mapping[mapping_node] = []
-                exit_events_by_mapping[mapping_node].append(event)
-
-    return exit_events_by_mapping, exit_events_by_gene, exit_mappings_by_gene
-
 
 def intersect_cost(event):
+    """The cost added if both reconciliations being looked at share a particular event"""
     return 0
 
-def cost(event):
+def cost(event, zero_loss):
+    """The cost added if exactly one of the reconciliations being looked at share a particular event."""
+    if zero_loss and event[0] == 'L':
+        return 0
     return 1
 
 
@@ -412,7 +261,7 @@ def calculate_ancestral_table(species_tree):
 
     return ancestral_table
   
-def calculate_score_double_exit(enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b):
+def calculate_score_double_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b):
     """This function computes the score of a 'double exit', where both mapping nodes exit immediately."""
     score_double_exit = float('-inf')
 
@@ -450,26 +299,54 @@ def calculate_score_double_exit(enter_table, u, gene_tree, uA, dtl_recon_graph_a
                 # supersede this one
                 score_double_exit = max(score_double_exit,
                                         enter_table[child1][uB][uE] + enter_table[child2][uC][uF] \
-                                        + (cost(e1) + cost(e2) if e1 != e2 else intersect_cost(0)))
+                                        + (cost(e1, zero_loss) + cost(e2, zero_loss) if e1 != e2
+                                           else intersect_cost(0)))
 
     return score_double_exit
 
 
-def compute_incomparable_single_exit(enter_table, u, uA, uA_loss_events, uB, uB_loss_events, score_double_exit):
-
+def calculate_incomparable_enter_score(zero_loss, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
+                                       score_double_exit):
+    """Returns the enter table entry for [uA][uB] with the assumption that A is on a different part of the species
+    tree from B
+    :param zero_loss:           Whether losses should not count
+    :param enter_table:         The DP table we are computing part of
+    :param u:                   The gene node whose group we are in
+    :param uA:                  The first mapping node to compare
+    :param uA_loss_events:      A list of the loss events on that mapping node
+    :param uB:                  The second mapping node to compare
+    :param uB_loss_events:      A list of the loss events on that mapping node
+    :param score_double_exit:   The score of the double-exit that was previously calculated for uA and uB
+    """
     scores = [score_double_exit]
     for event in uA_loss_events:
         a_child = event[1][1]
-        scores += [enter_table[u][(u, a_child)][uB] + cost(event)]
+        scores += [enter_table[u][(u, a_child)][uB] + cost(event, zero_loss)]
     for event in uB_loss_events:
         b_child = event[1][1]
-        scores += [enter_table[u][uA][(u, b_child)] + cost(event)]
-    enter_table[u][uA][uB] = max(scores)
+        scores += [enter_table[u][uA][(u, b_child)] + cost(event, zero_loss)]
+    return max(scores)
 
 
-def compute_equal_single_exit(enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                              score_double_exit, single_exit_table):
+def calculate_equal_enter_score(zero_loss, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
+                                score_double_exit, single_exit_table):
+    """Returns the enter table entry for [uA][uB] with the assumption that uA equals uB (but they might have different
+    loss events leaading from them!
+    :param zero_loss:           Whether losses should not count
+    :param enter_table:         The DP table we are computing part of
+    :param u:                   The gene node whose group we are in
+    :param uA:                  The first mapping node to compare
+    :param uA_loss_events:      A list of the loss events on that mapping node
+    :param uB:                  The second mapping node to compare
+    :param uB_loss_events:      A list of the loss events on that mapping node
+    :param score_double_exit:   The score of the double-exit that was previously calculated for uA and uB
+    :param single_exit_table:   The single exit table, which contains information about the single exit events for
+                                the mapping nodes' children.
+    """
+    # If uA does not equal uB, then something's gone horribly wrong.
     assert uA == uB
+
+    # Build up a list of the possible scores of this pair of mapping nodes, so that we can find the maximum later.
     scores = [score_double_exit]
     for a_event in uA_loss_events:
         a_child = a_event[1][1]
@@ -479,24 +356,47 @@ def compute_equal_single_exit(enter_table, u, uA, uA_loss_events, uB, uB_loss_ev
 
     for event in uA_loss_events:
         a_child = event[1][1]
-        scores += [single_exit_table[u][uB][(u, a_child)] + cost(event)]
+        scores += [single_exit_table[u][uB][(u, a_child)] + cost(event, zero_loss)]
     for event in uB_loss_events:
         b_child = event[1][1]
-        scores += [single_exit_table[u][uA][(u, b_child)] + cost(event)]
-    enter_table[u][uA][uB] = max(scores)
+        scores += [single_exit_table[u][uA][(u, b_child)] + cost(event, zero_loss)]
+    return max(scores)
 
 
-def compute_ancestral_single_exit(is_swapped, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                              score_double_exit, single_exit_table):
+def calculate_ancestral_enter_score(zero_loss, is_swapped, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
+                                    score_double_exit, single_exit_table):
+    """Returns the enter table entry for [uA][uB] with the assumption that A is an ancestor of B (if is_swapped is
+    false) or that B is an ancestor of A (if is_swapped is true). In both cases, it will compute the single exit
+    table entry of the pair (with the ancestor going first, of course).
+    :param zero_loss:           Whether losses should not count
+    :param is_swapped:          Whether B is an ancestor of A (instead of the assumed A is an ancestor of B)
+    :param enter_table:         The DP table we are computing part of
+    :param u:                   The gene node whose group we are in
+    :param uA:                  The first mapping node to compare
+    :param uA_loss_events:      A list of the loss events on that mapping node
+    :param uB:                  The second mapping node to compare
+    :param uB_loss_events:      A list of the loss events on that mapping node
+    :param score_double_exit:   The score of the double-exit that was previously calculated for uA and uB
+    :param single_exit_table:   The single exit table, which contains information about the single exit events for
+                                the mapping nodes' children."""
+
+    # In both cases, we will need to tally up the scores of any loss events on the descendant. Scores will hold those
+    # values, and the score of a double exit.
     scores = [score_double_exit]
 
     # We check to see if which mapping node is the ancestor is swapped from uA an uB to uB an uA. We can't just
     # swap the arguments in that case unfortunately, because enter_table requires the two arguments be entered in the
     # correct direction.
     if not is_swapped:
+        # uA is an ancestor to uB
+        # Tally up the scores of the descendant's (uB's) loss events
         for event in uB_loss_events:
             b_child = event[1][1]
-            scores += [single_exit_table[u][uA][(u, b_child)] + cost(event)]
+            # Add the score of taking this loss (the single_exit_table's entry for the mapping node that this loss
+            # leads to, plus the cost of a loss)
+            scores += [single_exit_table[u][uA][(u, b_child)] + cost(event, zero_loss)]
+
+        # Initialize the ancestor's (uA) entry in single_exit_table, if need be.
         if not uA in single_exit_table[u]:
             single_exit_table[u][uA] = {}
         single_exit_table[u][uA][uB] = max(scores)
@@ -504,12 +404,18 @@ def compute_ancestral_single_exit(is_swapped, enter_table, u, uA, uA_loss_events
         enter_scores = [single_exit_table[u][uA][uB]]
         for event in uA_loss_events:
             a_child = event[1][1]
-            enter_scores += [enter_table[u][(u, a_child)][uB] + cost(event)]
-        enter_table[u][uA][uB] = max(enter_scores)
+            enter_scores += [enter_table[u][(u, a_child)][uB] + cost(event, zero_loss)]
+        return  max(enter_scores)
     else:
+        # uB is an ancestor to uA
+        # Tally up the scores of the descendant's (uA's) loss events
         for event in uA_loss_events:
             a_child = event[1][1]
-            scores += [single_exit_table[u][uB][(u, a_child)] + cost(event)]
+            # Add the score of taking this loss (the single_exit_table's entry for the mapping node that this loss
+            # leads to, plus the cost of a loss)
+            scores += [single_exit_table[u][uB][(u, a_child)] + cost(event, zero_loss)]
+
+        # Initialize the ancestor's (uB) entry in single_exit_table, if need be.
         if not uB in single_exit_table[u]:
             single_exit_table[u][uB] = {}
         single_exit_table[u][uB][uA] = max(scores)
@@ -517,31 +423,55 @@ def compute_ancestral_single_exit(is_swapped, enter_table, u, uA, uA_loss_events
         enter_scores = [single_exit_table[u][uB][uA]]
         for event in uB_loss_events:
             b_child = event[1][1]
-            enter_scores += [enter_table[u][uA][(u, b_child)] + cost(event)]
-        enter_table[u][uA][uB] = max(enter_scores)
+            enter_scores += [enter_table[u][uA][(u, b_child)] + cost(event, zero_loss)]
+        return max(enter_scores)
 
-# Note species tree is assumed to be in vertex format
+
 def new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph_a, dtl_recon_graph_b, debug, zero_loss):
-
+    """
+    This function finds the diameter of a reconciliation graph, as measured by the largest symmetric set difference
+     of any two reconciliation trees inside of a reconciliation graph. While you can get standard diameter behaviour
+     by making dtl_recon_graph_a equal dtl_recon_graph_b, arbitrary restrictions may be placed on which nodes are
+     selected by choosing different graphs, for example by limiting one of the graphs to a single reconciliation tree
+     to find that tree's distance to the furthest reconciliation.
+    :param species_tree:        The species tree (in vertex form)
+    :param gene_tree:           The gene tree (in vertex form)
+    :param gene_tree_root:      The root of the gene tree
+    :param dtl_recon_graph_a:   One of the two DTL reconcilation graphs to make the diameter from.
+    :param dtl_recon_graph_b:   The other reconciliation graph. Both must share the same species and gene trees.
+    :param debug:               Whether or not to print out pretty tables
+    :param zero_loss:           Whether losses should count at all
+    :return:                    The diameter of the reconciliation.
+    """
     postorder_gene_nodes = list(gene_tree.keys())
     postorder_species_nodes = list(species_tree.keys())
     postorder_group_a = {}
     postorder_group_b = {}
     for u in gene_tree:
+        # First we make the dictionary only contain nodes that have this gene node
         postorder_group_a[u] = filter(lambda mapping: mapping[0] == u, dtl_recon_graph_a)
+        # Then we sort the dictionary into postorder, using the species node's index in the postorder species list as a
+        # guide.
         postorder_group_a[u] = sorted(postorder_group_a[u], key=lambda mapping: postorder_species_nodes.index(mapping[1]))
+        # And we do it again for group B
+        # First we make the dictionary only contain nodes that have this gene node
         postorder_group_b[u] = filter(lambda mapping: mapping[0] == u, dtl_recon_graph_b)
+        # Then we sort the dictionary into postorder, using the species node's index in the postorder species list as a
+        # guide.
         postorder_group_b[u] = sorted(postorder_group_b[u], key=lambda mapping: postorder_species_nodes.index(mapping[1]))
     ancestral_table = calculate_ancestral_table(species_tree)
+
     single_exit_table = {}
+
     enter_table = {}
+
     for u in postorder_gene_nodes:
         enter_table[u] = {}
         single_exit_table[u] = {}
         for uA in postorder_group_a[u]:
             enter_table[u][uA] = {}
             for uB in postorder_group_b[u]:
-                score_double_exit = calculate_score_double_exit(enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b)
+                score_double_exit = calculate_score_double_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b)
                 #print "{0} - {1}".format(uA, uB)
                 ancestry = ancestral_table[uA[1]][uB[1]]
 
@@ -551,21 +481,23 @@ def new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_gr
                                         dtl_recon_graph_b[uB])
 
                 # To compute the proper single exit entry, we must know how the two nodes relate to each other. See the
-                # header for a more complete explanation on this.
+                # header for a more complete explanation on this data structure.
                 if ancestry == 'in':
-                    compute_incomparable_single_exit(enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                                                     score_double_exit)
+                    score = calculate_incomparable_enter_score(zero_loss, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
+                                                               score_double_exit)
                 elif ancestry == 'eq':
-                    compute_equal_single_exit(enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                                              score_double_exit, single_exit_table)
+                    score = calculate_equal_enter_score(zero_loss, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
+                                                        score_double_exit, single_exit_table)
+                # The only difference between the 'des' and 'an' cases are whether the nodes should be swapped
                 elif ancestry == 'des':
-                    compute_ancestral_single_exit(True, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                                                  score_double_exit, single_exit_table)
+                    score = calculate_ancestral_enter_score(zero_loss, True, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
+                                                            score_double_exit, single_exit_table)
                 elif ancestry == 'an':
-                    compute_ancestral_single_exit(False, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                                                  score_double_exit, single_exit_table)
+                    score = calculate_ancestral_enter_score(zero_loss, False, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
+                                                            score_double_exit, single_exit_table)
                 else:
                     raise ValueError("Invalid ancestry type '{0}', check calculate_ancestral_table().".format(ancestry))
+                enter_table[u][uA][uB] = score
         if debug:
             print_table_nicely(enter_table[u], ", ", "EnterTable({0})".format(u))
     # Now, the diameter of this reconciliation will be the maximum entry on the enter table.
@@ -632,24 +564,13 @@ def print_table_nicely(table, deliminator, name="\t", dtype="map"):
 
 
 def clean_graph(dtl_recon_graph, gene_tree_root):
-    """Cleans up the graph created by DTLReconGraph.py by turning removing scores from events and event lists, and removes any
-     loss events on the root gene node.
+    """Cleans up the graph created by DTLReconGraph.py by turning removing scores from event lists
      :param dtl_recon_graph:    The DTL reconciliation graph that we wish to clean
      :param gene_tree_root:     The root of the gene tree of said graph
      :return:                   Nothing, but modifies dtl_recon_graph"""
     for key in dtl_recon_graph:
         # Get rid of all of the random numbers in the event list
         dtl_recon_graph[key] = filter(lambda e: not isinstance(e, (float, int)), dtl_recon_graph[key])
-        # The events in the event dtl_recon_graph are stored as lists which cannot be used as dict keys. Let's fix that.
-        # The below code is no longer necessary, as it is being filtered out in DTLReconGraph.py
-
-        # for i in range(0, len(dtl_recon_graph[key])):
-            # Get rid of the last value, as it is a number we don't need
-            # dtl_recon_graph[key][i] = dtl_recon_graph[key][i][:-1]
-
-        # DTLReconGraph should be filtering the loss events on the root node out, so we don't need to worry about it
-        # if key[0] == gene_tree_root:
-            # dtl_recon_graph[key] = filter(lambda e: not e[0] == 'L', dtl_recon_graph[key])
 
 
 def write_to_csv(csv_file, costs, filename, mpr_count, diameter, gene_node_count,
@@ -730,12 +651,12 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     # And record how long it took to compute the diameter.
     diameter_time_taken = time.clock() - start_time
 
-    #start_time = time.clock()
-    #zl_diameter = new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph, dtl_recon_graph, debug, True)
-    #zl_diameter_time_taken = time.clock()-start_time
+    start_time = time.clock()
+    zl_diameter = new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph, dtl_recon_graph, debug, True)
+    zl_diameter_time_taken = time.clock()-start_time
 
     if verbose:
-        print "The diameter of the given reconciliation graph is \033[33m\033[1m{0}\033[0m, (or \033[33m\033[1m{1}\033[0m if losses do not affect the diameter)".format(diameter, diameter)#zl_diameter)
+        print "The diameter of the given reconciliation graph is \033[33m\033[1m{0}\033[0m, (or \033[33m\033[1m{1}\033[0m if losses do not affect the diameter)".format(diameter, zl_diameter)
 
     # Timing data is inaccurate in debug mode (print statements take too long), so we only give it to the user in non-
     # debug mode.
@@ -747,11 +668,10 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     if log is not None:
         costs = "D: {0} T: {1} L: {2}".format(D, T, L)
         write_to_csv(log + ".csv", costs, filename, mpr_count, diameter, gene_node_count, DTLReconGraph_time_taken, diameter_time_taken)
-        #write_to_csv(log + "_zl.csv", costs, filename, mpr_count, zl_diameter, gene_node_count, DTLReconGraph_time_taken,
-         #            zl_diameter_time_taken)
+        write_to_csv(log + "_zl.csv", costs, filename, mpr_count, zl_diameter, gene_node_count, DTLReconGraph_time_taken,
+                     zl_diameter_time_taken)
     # And we're done.
     return
-
 
 def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, debug=False, verbose=True):
     """Iterates over a lot of input files and finds the diameter of all of them.

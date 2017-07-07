@@ -699,7 +699,7 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
 
     start_time = time.clock()
     zl_diameter = diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph, debug, True)
-    zl_diameter_time_taken = time.clock()-start_time
+    zl_diameter_time_taken = time.clock() - start_time
 
     if verbose:
         print "The diameter of the given reconciliation graph is \033[33m\033[1m{0}\033[0m, (or \033[33m\033[1m{1}\033[0m if losses do not affect the diameter)".format(diameter, zl_diameter)

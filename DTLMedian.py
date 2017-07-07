@@ -162,6 +162,7 @@ def calculateScoresForChildren(mappingNode, DTLReconGraph, scoredGraph, scores, 
     events = DTLReconGraph[mappingNode]
 
     assert scores[mappingNode] != 0
+    # This multiplier is arcane bullshit that we all immediately forgot how it works, but it gets the job done.
     multiplier = float(scores[mappingNode])/memo[mappingNode]
 
     # Iterate over every event
@@ -184,5 +185,7 @@ def t(file="le1"):
     preorderGeneList = reversed(preorderGeneList)
     preorderSpeciesList = reversed(preorderSpeciesList)
     preorderMappingNodeList = preorderMappingNodeSort(preorderGeneList, preorderSpeciesList,  graph.keys())
-    print generateScores(preorderMappingNodeList, graph, geneRoot)
+    scores = generateScores(preorderMappingNodeList, graph, geneRoot)
+    for k in scores[0]:
+        print "{0} : {1}".format(k, scores[0][k])
     print count
