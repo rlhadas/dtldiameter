@@ -168,6 +168,7 @@ def calculateScoresForChildren(mappingNode, DTLReconGraph, scoredGraph, scores, 
     events = DTLReconGraph[mappingNode]
 
     assert scores[mappingNode] != 0
+    # This multiplier is arcane bullshit that we all immediately forgot how it works, but it gets the job done.
     multiplier = float(scores[mappingNode])/memo[mappingNode]
 
     # Iterate over every event

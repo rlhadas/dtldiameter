@@ -30,7 +30,7 @@ DP is the workhorse of the code - it utilizes several helper functions to actual
 
 #### Reconcile
 
-Reconcile is the more practically useful function. Since the data are implemented as newick trees and mappings, reconcile utilizes a separate module that both handles getting the data from a separate file and reformats the inputs to work nicely with DP. Reconcile reformat the species and gene trees to match the output format given in the section on running from the command line, and prints out these trees along with the reconciliation graph (again, in the format discussed above) and the number of Maximum Parsimony Reconciliations as an integer. Although one may play with any/all functions included in this file and those on which it depends, DP and reconcile are the most important functions.
+Reconcile is the more practically useful function. Since the data are implemented as newick trees and mappings, reconcile utilizes a separate module that both handles getting the data from a separate file and reformats the inputs to work nicely with DP. Reconcile reformat the species and gene trees to match the output format given in the section on running from the command line, and prints out these trees along with the reconciliation graph (again, in the format discussed above), the number of Maximum Parsimony Reconciliations as an integer, and a list of mappings (as tuples) of gene nodes onto species nodes that could produce an MPR. Although one may play with any/all functions included in this file and those on which it depends, DP and reconcile are the most important functions.
 
 ## How to use Diameter.py
 
@@ -96,3 +96,45 @@ To calculate a set of numbered files, use this function:
 
 Where `file_pattern` is the pattern used to find the right files (as described in the command line `-i` flag section), `start` is the starting file number, `end` is the exclusive ending file number, and the rest of the parameters are the same as `calculate_diameter_from_file()`.
 
+## How To Use DataAnalysis.py
+
+### From The Command Line
+
+#### Required Argument:
+
+Running DataAnalysis from the command line has the following usage pattern:
+
+> DataAnalysis.py [options] file
+
+In this command, `file` is the relative path to the csv file (output by Diameter.py) you wish to analyze. By default DataAnalysis will find the minimum, maximum, median, and mean of:
+* The number of MPRs
+* The diameter found
+* The size of the gene tree
+* The normalized diameter
+
+and the running time of
+
+* Building the DTL reconciliation graph
+* Calculating the diameter
+* Both combined
+
+and display them to the screen.
+
+#### Optional Flags
+These flags can be used to coax some additional functionality out of DataAnalysis.py, most importantly plots!
+
+`-p` will tell the program to show plots. By default, DataAnalysis will plot the normalized diameter against gene tree size and MPR count.
+
+`-n` tells the program to include another plot that uses the non-normalized diameter.
+
+`-t` tells the program to include another plot that plots the timings of the different portions of Diameter.
+
+`-z` tells the program to also make all plots for a zero loss version of the logfile (it will look for one with the same name but ending in `\_zl`)
+
+`-l` tells the program to use LaTeX for plot text rendering
+
+In addition to those plot options, there are a couple more usable flags:
+
+`-c COMPARE_FILE` compares the given csv file with another one (`COMPARE_FILE`) that has the same calculated files in the same order. It will note any mismatches between the two file's diameters.
+
+`-k CHECK_PATH` compares the given csv file with the path that the newick files you originally reconciled reside (`CHECK_PATH`), and notifies you of any duplicate files in your log, or files in the path that are not in the log.
