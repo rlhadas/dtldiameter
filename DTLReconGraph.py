@@ -72,8 +72,9 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
     """ Takes a hostTree, parasiteTree, tip mapping function phi, and duplication cost (D),
         transfer cost (T), and loss cost (L), and returns the DTL reconciliation
         graph in the form of a dictionary, as well as the total cost of the
-        optimal Maximum Parsimony Reconciliation and the number of maximum
-        parsimony reconciliations. Note that the DTL reconciliation graph
+        optimal Maximum Parsimony Reconciliation, the number of maximum
+        parsimony reconciliations, and the roots for a reconciliation graph that could
+        produce a Maximum Parsimony Reconciliation. Note that the DTL reconciliation graph
         is returned as a dictionary with mapping nodes for keys, and values
         corresponding to lists which include all valid event nodes for a given
         mapping node for the MPR, with minimum cost associated with the mapping node as
@@ -362,8 +363,8 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
     # The total cost of the best reconciliation
     bestCost = minCost[treeMin[0]]
 
-    # Returns the graph, the optimal cost, and the number of MPRs
-    return DTLReconGraph, bestCost, nMPRs
+    # Returns the graph, the optimal cost, the number of MPRs, and the roots that could produce an MPR
+    return DTLReconGraph, bestCost, nMPRs, treeMin
 
 
 def preorderDTLsort(DTLReconGraph, ParasiteRoot):
@@ -537,14 +538,15 @@ def findBestRoots(parasiteTree, minCostDict):
 
 def buildDTLReconGraph(tupleList, eventDict, uniqueDict):
     """
-     :param tupleList: a list of minimum cost reconciliation roots - see findBestRoots
-     for more info on the format of this input
-     :param eventDict: a dictionary representing events and the corresponding children
-     for each node - see eventDict in DP for more info on the format of this input
-     :param uniqueDict: a dictionary of unique vertex mappings, which initially
-     starts empty and gets built up using eventDict and tupleList using recursion
-     :return: the modified uniqueDict for this particular call of the function
-     """
+    :param tupleList: a list of minimum cost reconciliation roots - see findBestRoots
+    for more info on the format of this input
+    :param eventDict: a dictionary representing events and the corresponding children
+    for each node - see eventDict in DP for more info on the format of this input
+    :param uniqueDict: a dictionary of unique vertex mappings, which initially
+    starts empty and gets built up using eventDict and tupleList using recursion
+    :return: the modified uniqueDict for this particular call of the function
+    """
+
     for vertexPair in tupleList:
         if vertexPair not in uniqueDict:
             uniqueDict[vertexPair] = eventDict[vertexPair]
@@ -564,21 +566,22 @@ def reconcile(fileName, D, T, L):
     :param D: the cost associated with a duplication event
     :param T: the cost associated with a transfer event
     :param L: the cost associated with a loss event
-    :return: the host tree used, the parasite tree used, the DTLReconGraph, and the number of
-    MPRs (as an int). See preceding functions for details on the format of the host and parasite
-    trees as well as the DTLReconGraph
+    :return: the host tree used, the parasite tree used, the DTLReconGraph, the number of
+    MPRs (as an int), and a list of the roots that could be used to produce an MPR for the given trees.
+    See preceding functions for details on the format of the host and parasite trees as well as
+    the DTLReconGraph
     """
     # Note: I have made modifications to the return statement to make Diameter.py possible without re-reconciling.
     host, paras, phi = newickFormatReader.getInput(fileName)
-    graph, _, numRecon = DP(host, paras, phi, D, T, L)
-    return host, paras, graph, numRecon
+    graph, _, numRecon, bestRoots = DP(host, paras, phi, D, T, L)
+    return host, paras, graph, numRecon, bestRoots
 
 
 # The remaining code handles the case of the user wanting to run reconcile from the command line
 
 def usage():
     """
-    :return: the usage statement associated with reconcile
+    :return: the usage statement associated with reconcile, and thus the main execution block
     """
     return ('usage: DTLReconGraph filename D_cost T_cost L_cost\n\t  filename: the name of the file that contains'
             ' the data \n\t  D_cost, T_cost, L_cost: costs for duplication, transfer, and loss events,'

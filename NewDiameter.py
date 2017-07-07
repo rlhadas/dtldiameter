@@ -152,7 +152,6 @@ import csv
 import os.path
 from collections import OrderedDict
 from itertools import product
-from DTLMedian import preorderMappingNodeSort
 # Used for command line arguments:
 
 import sys
@@ -366,8 +365,8 @@ def calculate_ancestral_table(species_tree):
     # Helper dict to help us determine if two nodes are ancestrally related
     descendants = dict()
 
-    # Get all of the vertices in the tree
-    vertices = [vertex for vertex in species_tree]
+    # Get all of the vertices in the tree, which are the keys of the species_tree OrderedDict
+    vertices = species_tree.keys()
 
     # Initialize all entries to incomparable to make following calculations easier
     for pair in list(product(vertices, vertices)):  # Cartesian product of all of the vertices
@@ -519,6 +518,7 @@ def compute_ancestral_single_exit(is_swapped, enter_table, u, uA, uA_loss_events
             b_child = event[1][1]
             enter_scores += [enter_table[u][uA][(u, b_child)] + cost(event)]
         enter_table[u][uA][uB] = max(enter_scores)
+
 
 # Note species tree is assumed to be in vertex format
 def new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph_a, dtl_recon_graph_b, debug, zero_loss):
@@ -703,7 +703,7 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     start_time = time.clock()
 
     # Get everything we need from DTLReconGraph
-    species_tree, gene_tree, dtl_recon_graph, mpr_count = DTLReconGraph.reconcile(filename, D, T, L)
+    species_tree, gene_tree, dtl_recon_graph, mpr_count, _ = DTLReconGraph.reconcile(filename, D, T, L)
 
     # Record the time that this code starts
 
