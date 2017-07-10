@@ -308,7 +308,7 @@ def buildMedianReconGraph(eventDict, root):
     return subgraph_recon_dict
 
 
-def find_median(filename='le1', D=2, T=3, L=1):
+def find_median_recon(filename='le1', D=2, T=3, L=1):
 
     species_tree, gene_tree, dtl_recon_graph, menpmn, mdenpmn, data, mpr_count, best_roots = RG.reconcile(
         filename, D, T, L)
@@ -329,6 +329,7 @@ def find_median(filename='le1', D=2, T=3, L=1):
                                                   best_roots)
 
     return median_reconciliation
+
 
 def calc_med_diameter(filename='TreeLifeData/COG0195.newick', log=None, D=2, T=3, L=1):
 
