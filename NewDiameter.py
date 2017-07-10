@@ -101,8 +101,8 @@ import csv
 import os.path
 from collections import OrderedDict
 from itertools import product
-# Used for command line arguments:
 
+# Used for command line arguments:
 import sys
 import re
 import traceback
@@ -147,6 +147,7 @@ def reformat_tree(tree, root):
 def intersect_cost(event):
     """The cost added if both reconciliations being looked at share a particular event"""
     return 0
+
 
 def cost(event, zero_loss):
     """The cost added if exactly one of the reconciliations being looked at share a particular event."""
@@ -218,7 +219,8 @@ def calculate_ancestral_table(species_tree):
                 ancestral_table[descendant][v] = 'des'
 
     return ancestral_table
-  
+
+
 def calculate_score_both_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b):
     """This function computes the score of a 'double exit', where both mapping nodes exit immediately."""
     score_both_exit = float('-inf')
@@ -483,6 +485,7 @@ def new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_gr
 
     return diameter
 
+
 def event_to_string(event):
     return "{0}:{1}{2} {3}{4}".format(str(event[0]), str(event[1][0]), str(event[1][1]),
                                       str(event[2][0]), str(event[2][1]))
@@ -602,7 +605,6 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     # Get everything we need from DTLReconGraph
     edge_species_tree, edge_gene_tree, dtl_recon_graph, menpmn, mdenpmn, data, mpr_count, _ = DTLReconGraph.reconcile(filename, D, T, L)
 
-
     # Record the time that this code starts
 
     # The gene tree needs to be in node format, not edge format, so we find that now.
@@ -649,7 +651,6 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
                      zl_diameter_time_taken)
     # And we're done.
     return
-
 
 
 def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, debug=False, verbose=True):
