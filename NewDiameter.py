@@ -1,10 +1,6 @@
 # NewDiameter.py
 # Written by Eli Zupke and Andrew Ramirez July 2017
-# It is based off of Jordan Haack's work on a polynomial-time algorithm for the DTL MPR Diameter Problem
-
-# TODO: Update header
-
-# TODO: provide ancestry details.
+# It is based off of Jordan Haack's more efficient work on a polynomial-time algorithm for the DTL MPR Diameter Problem
 
 # 0. ON THE PAPER
 #
@@ -20,12 +16,11 @@
 
 # 1. ON TREE REPRESENTATION FORMATS:
 #
-#       This file deals with trees in two formats: Edge-based formats, and vertex-based formats. The edged-based
-#   trees are what are output from DTLReconGraph.py (which returns them straight from newickFormatReader), and are what this
-#   file uses to represent the species tree. For readability and convenience purposes, the gene tree is converted to
-#   a vertex tree in the reformat_tree() method.
+#       There are two formats in this code-base for trees: Edge-based trees, and vertex-based trees. The edged-based
+#   trees are what are output from DTLReconGraph.py (which returns them straight from newickFormatReader). For
+#   readability and convenience purposes, both the gene and species trees are converted into vertex-based
 #
-#   Both trees use dictionaries to store the tree structure, but formats differ slightly.
+#   Both formats use dictionaries to store the tree structure, but they differ somewhat
 # Example:
 #   When N is a node descended from R, with children C1 and C2,
 #
@@ -35,62 +30,40 @@
 #   And an entry in the vertex-based representation looks like this:
 #       {'N':('C1','C2') ...}
 #
-#   Because the standard elsewhere in this codebase is to use edge-based trees, all vertex-based tree variable names
-#   will explicitly contain the word "vertex", while edge-based trees will not. So, an edge-based tree can be named
-#   "tree" while a vertex-based tree has to be named "vertex_tree".
+#   As this file almost exclusively uses vertex-based trees, vertex-based trees will just be named trees, while edge-
+#   based trees contain the word 'edge' in their names.
 
 # 2. ON THE NAMING CONVENTION OF THE TWO TREES:
 #
-#       This file calls the two trees the gene tree and the species tree. Other programs, like DTLReconGraph.py, have different
-#   naming conventions (such as "host" for the species tree and "parasite" for the gene tree) because they were coded
-#   under different assumptions as to what the two trees represent. Let it be understood that these names are
+#       This file calls the two trees the gene tree and the species tree. Other programs, like DTLReconGraph.py, have
+#   different naming conventions (such as "host" for the species tree and "parasite" for the gene tree) because they
+#   were coded under different assumptions as to what the two trees represent. Let it be understood that these names are
 #   synonymous, and that references to "hTop" or "pTop" refer to the name of the handle of the species and
 #   gene trees that DTLReconGraph outputs.
 
 
-# 3. ON THE USAGE OF PATHS AND THE PATH REPRESENTATION FORMAT:
+# 3. ON GENE, SPECIES, AND MAPPING NODES:
 #
-#       compute_enter_mapping_table() needs to use the symmetric set difference between every pair of paths on the gene
-#   tree. This is pre-computed in build_path_symmetric_set_difference_table() and stored in a nested dictionary.
-#   The format of each path is a tuple where the first entry is the species node that the path starts on, and the second
-#   entry is the species node that the path ends on. These paths are stored as the keys of a dictionary called
-#   path_edges.
+#       The convention for variable names in this file is to use lowercase letters to represent gene nodes (commonly
+#   'u'), uppercase letters to represent species nodes (commonly 'A' and 'B') and pairs of lower and upper case letter
+#   to represent mapping nodes (commonly 'uA' and 'uB').
+
 
 # 4. ON THE DYNAMIC PROGRAMMING TABLES AND THEIR FUNCTIONS:
 #
-#       The Diameter algorithm involves the use of three dynamic programming tables:
-#   The enter_mapping_table, the exit_mapping_table, and the exit_event_table. All three of these have the same key
-#   format: [u][x][y], where u is a node on the gene tree, and x and y are either event nodes or mapping nodes. Which
-#   type each table has is evident in the name.
-#
-#       These tables are computed for every gene node, in post-order. Functions that begin with the word 'computed'
-#   build these tables by taking them in as a reference and modifying the values. These functions return nothing.
-#   Other functions (such as one starting with 'build') actually return the thing that they are creating.
+#       The Diameter algorithm involves the use of two dynamic programming tables:
+#   The enter_table and the exit_table.
 #
 #       The tables are described in detail in the paper, but a summary of their functions follows:
 #
-#       exit_event_table (only implied in the paper) contains the largest number of event nodes that each pair of
-#   reconciliations rooted at events x and y can differ for, where x and y are exit-event nodes in Group(u).
-#       exit_mapping_table (called EXIT in the paper) contains the largest number of event nodes that each pair of
-#   reconciliation subtrees rooted at mapping nodes x and y can differ for, on the condition that x and y go
-#   immediately to an exit-event.
-#       enter_mapping_table (called ENTER in the paper) contains the largest number of event nodes that each pair
-#   of reconciliation subtrees rooted at x and y can differ for when x and y are used to enter Group(u).
+#       The enter_table has the format [u][uA][uB], and it contains the largest number of event nodes that each pair
+#   of reconciliation subtrees rooted at uA and uB can differ for when uA and uB are used to enter Group(u). Running the
+#   program in debug mode will print out this table at every u.
 #
-#       To get a better sense of how the tables are structured, you can try running an example in debug mode, which
-#   will actually print out these tables.
+#       The exit_table has the format [u][uA][uB] (where uA is an ancestor of uB or uA == uB). It contains the  largest
+#   number of event nodes that each pair of reconciliation subtrees rooted at uA and uB can differ for when uA leads
+#   to an exit event.
 
-# 5. ON EXIT_X_BY_Y DICTIONARIES:
-#
-#       There are several helper dictionaries which pertain to exit events. Their names should be pretty self
-#   explanatory, but they are described more fully here.
-#
-#       exit_events_by_mapping is keyed by mapping node. Each entry contains a list of every exit event
-#   that is a child of that mapping node
-#       exit_events_by_gene is keyed by gene node. Each entry contains a list of every exit event in
-#   the group of that gene node
-#       exit_mappings_by_gene is keyed by gene node. Each entry contains a list of every mapping node
-#   in group of that gene node, on the condition that that mapping node has an exit event
 
 # -1. DATA STRUCTURE QUICK REFERENCE:
 #
@@ -100,28 +73,16 @@
 #       A incomparable to B:'in'
 #       A is equal to B:    'eq'
 #
-#   Pre clean_graph():
+#   DTL Reconciliation graph (post clean_graph):
+#       { mapping_node: [event1, event2, ...] ...}
 #
-#      DTL Reconciliation graph:
-#           { mapping_node: [event1, event2, ... eventn, number] ...}
-#
-#      Event node:
-#           ('type', child_mapping_node1, child_mapping_node2, number)
-#
-#   Post clean_graph():
-#
-#       DTL Reconciliation graph (post clean_graph):
-#           { mapping_node: [event1, event2, ...] ...}
-#
-#       Event node (post clean_graph):
-#           ('type', child_mapping_node1, child_mapping_node2)
-#
+#   Event node (post clean_graph):
+#       ('type', child_mapping_node1, child_mapping_node2)
 #
 #   Mapping node:
 #       ('gene_node','SPECIES_NODE')
 #   or in loss or contemporary event nodes:
 #       (None, None)
-#
 #
 #   (edge) trees:
 #       {('R','N'): ('R','N', ('N','C1'), ('N','C2')) ...}
@@ -130,12 +91,6 @@
 #
 #   vertex_trees:
 #       {'N':('C1','C2') ...}
-#
-#   path:
-#       ('SOURCE','DESTINATION')
-#
-#   path_edges:
-#       {path: [edge1, edge2, edge3, ...] ...}
 
 import DTLReconGraph
 import time
@@ -261,15 +216,15 @@ def calculate_ancestral_table(species_tree):
 
     return ancestral_table
   
-def calculate_score_double_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b):
+def calculate_score_both_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b):
     """This function computes the score of a 'double exit', where both mapping nodes exit immediately."""
-    score_double_exit = float('-inf')
+    score_both_exit = float('-inf')
 
     # Test to see if u is a leaf
     if gene_tree[u] == (None, None):
         #TODO: Why do we need to check for contemporaneous events?
         if uA == uB and ('C', (None, None), (None, None)) in dtl_recon_graph_a[uA]:
-            score_double_exit = 0
+            score_both_exit = 0
     else:
         uA_exit_events = filter(lambda event: isinstance(event, tuple) and event[0] not in ('C', 'L'),
                                 dtl_recon_graph_a[uA])
@@ -297,16 +252,16 @@ def calculate_score_double_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_re
                 uF = (child2, F)
                 # If the score of this iteration's double exit is better than the old one, then the old one will
                 # supersede this one
-                score_double_exit = max(score_double_exit,
+                score_both_exit = max(score_both_exit,
                                         enter_table[child1][uB][uE] + enter_table[child2][uC][uF] \
                                         + (cost(e1, zero_loss) + cost(e2, zero_loss) if e1 != e2
                                            else intersect_cost(0)))
 
-    return score_double_exit
+    return score_both_exit
 
 
 def calculate_incomparable_enter_score(zero_loss, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                                       score_double_exit):
+                                       score_both_exit):
     """Returns the enter table entry for [uA][uB] with the assumption that A is on a different part of the species
     tree from B
     :param zero_loss:           Whether losses should not count
@@ -316,9 +271,9 @@ def calculate_incomparable_enter_score(zero_loss, enter_table, u, uA, uA_loss_ev
     :param uA_loss_events:      A list of the loss events on that mapping node
     :param uB:                  The second mapping node to compare
     :param uB_loss_events:      A list of the loss events on that mapping node
-    :param score_double_exit:   The score of the double-exit that was previously calculated for uA and uB
+    :param score_both_exit:   The score of the double-exit that was previously calculated for uA and uB
     """
-    scores = [score_double_exit]
+    scores = [score_both_exit]
     for event in uA_loss_events:
         a_child = event[1][1]
         scores += [enter_table[u][(u, a_child)][uB] + cost(event, zero_loss)]
@@ -329,7 +284,7 @@ def calculate_incomparable_enter_score(zero_loss, enter_table, u, uA, uA_loss_ev
 
 
 def calculate_equal_enter_score(zero_loss, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                                score_double_exit, single_exit_table):
+                                score_both_exit, exit_table):
     """Returns the enter table entry for [uA][uB] with the assumption that uA equals uB (but they might have different
     loss events leaading from them!
     :param zero_loss:           Whether losses should not count
@@ -339,15 +294,15 @@ def calculate_equal_enter_score(zero_loss, enter_table, u, uA, uA_loss_events, u
     :param uA_loss_events:      A list of the loss events on that mapping node
     :param uB:                  The second mapping node to compare
     :param uB_loss_events:      A list of the loss events on that mapping node
-    :param score_double_exit:   The score of the double-exit that was previously calculated for uA and uB
-    :param single_exit_table:   The single exit table, which contains information about the single exit events for
+    :param score_both_exit:   The score of the double-exit that was previously calculated for uA and uB
+    :param exit_table:   The single exit table, which contains information about the single exit events for
                                 the mapping nodes' children.
     """
     # If uA does not equal uB, then something's gone horribly wrong.
     assert uA == uB
 
     # Build up a list of the possible scores of this pair of mapping nodes, so that we can find the maximum later.
-    scores = [score_double_exit]
+    scores = [score_both_exit]
     for a_event in uA_loss_events:
         a_child = a_event[1][1]
         for b_event in uB_loss_events:
@@ -356,15 +311,15 @@ def calculate_equal_enter_score(zero_loss, enter_table, u, uA, uA_loss_events, u
 
     for event in uA_loss_events:
         a_child = event[1][1]
-        scores += [single_exit_table[u][uB][(u, a_child)] + cost(event, zero_loss)]
+        scores += [exit_table[u][uB][(u, a_child)] + cost(event, zero_loss)]
     for event in uB_loss_events:
         b_child = event[1][1]
-        scores += [single_exit_table[u][uA][(u, b_child)] + cost(event, zero_loss)]
+        scores += [exit_table[u][uA][(u, b_child)] + cost(event, zero_loss)]
     return max(scores)
 
 
 def calculate_ancestral_enter_score(zero_loss, is_swapped, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                                    score_double_exit, single_exit_table):
+                                    score_both_exit, exit_table):
     """Returns the enter table entry for [uA][uB] with the assumption that A is an ancestor of B (if is_swapped is
     false) or that B is an ancestor of A (if is_swapped is true). In both cases, it will compute the single exit
     table entry of the pair (with the ancestor going first, of course).
@@ -376,13 +331,13 @@ def calculate_ancestral_enter_score(zero_loss, is_swapped, enter_table, u, uA, u
     :param uA_loss_events:      A list of the loss events on that mapping node
     :param uB:                  The second mapping node to compare
     :param uB_loss_events:      A list of the loss events on that mapping node
-    :param score_double_exit:   The score of the double-exit that was previously calculated for uA and uB
-    :param single_exit_table:   The single exit table, which contains information about the single exit events for
+    :param score_both_exit:   The score of the double-exit that was previously calculated for uA and uB
+    :param exit_table:   The single exit table, which contains information about the single exit events for
                                 the mapping nodes' children."""
 
     # In both cases, we will need to tally up the scores of any loss events on the descendant. Scores will hold those
     # values, and the score of a double exit.
-    scores = [score_double_exit]
+    scores = [score_both_exit]
 
     # We check to see if which mapping node is the ancestor is swapped from uA an uB to uB an uA. We can't just
     # swap the arguments in that case unfortunately, because enter_table requires the two arguments be entered in the
@@ -392,16 +347,16 @@ def calculate_ancestral_enter_score(zero_loss, is_swapped, enter_table, u, uA, u
         # Tally up the scores of the descendant's (uB's) loss events
         for event in uB_loss_events:
             b_child = event[1][1]
-            # Add the score of taking this loss (the single_exit_table's entry for the mapping node that this loss
+            # Add the score of taking this loss (the exit_table's entry for the mapping node that this loss
             # leads to, plus the cost of a loss)
-            scores += [single_exit_table[u][uA][(u, b_child)] + cost(event, zero_loss)]
+            scores += [exit_table[u][uA][(u, b_child)] + cost(event, zero_loss)]
 
-        # Initialize the ancestor's (uA) entry in single_exit_table, if need be.
-        if not uA in single_exit_table[u]:
-            single_exit_table[u][uA] = {}
-        single_exit_table[u][uA][uB] = max(scores)
+        # Initialize the ancestor's (uA) entry in exit_table, if need be.
+        if not uA in exit_table[u]:
+            exit_table[u][uA] = {}
+        exit_table[u][uA][uB] = max(scores)
 
-        enter_scores = [single_exit_table[u][uA][uB]]
+        enter_scores = [exit_table[u][uA][uB]]
         for event in uA_loss_events:
             a_child = event[1][1]
             enter_scores += [enter_table[u][(u, a_child)][uB] + cost(event, zero_loss)]
@@ -411,16 +366,16 @@ def calculate_ancestral_enter_score(zero_loss, is_swapped, enter_table, u, uA, u
         # Tally up the scores of the descendant's (uA's) loss events
         for event in uA_loss_events:
             a_child = event[1][1]
-            # Add the score of taking this loss (the single_exit_table's entry for the mapping node that this loss
+            # Add the score of taking this loss (the exit_table's entry for the mapping node that this loss
             # leads to, plus the cost of a loss)
-            scores += [single_exit_table[u][uB][(u, a_child)] + cost(event, zero_loss)]
+            scores += [exit_table[u][uB][(u, a_child)] + cost(event, zero_loss)]
 
-        # Initialize the ancestor's (uB) entry in single_exit_table, if need be.
-        if not uB in single_exit_table[u]:
-            single_exit_table[u][uB] = {}
-        single_exit_table[u][uB][uA] = max(scores)
+        # Initialize the ancestor's (uB) entry in exit_table, if need be.
+        if not uB in exit_table[u]:
+            exit_table[u][uB] = {}
+        exit_table[u][uB][uA] = max(scores)
 
-        enter_scores = [single_exit_table[u][uB][uA]]
+        enter_scores = [exit_table[u][uB][uA]]
         for event in uB_loss_events:
             b_child = event[1][1]
             enter_scores += [enter_table[u][uA][(u, b_child)] + cost(event, zero_loss)]
@@ -461,17 +416,17 @@ def new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_gr
         postorder_group_b[u] = sorted(postorder_group_b[u], key=lambda mapping: postorder_species_nodes.index(mapping[1]))
     ancestral_table = calculate_ancestral_table(species_tree)
 
-    single_exit_table = {}
+    exit_table = {}
 
     enter_table = {}
 
     for u in postorder_gene_nodes:
         enter_table[u] = {}
-        single_exit_table[u] = {}
+        exit_table[u] = {}
         for uA in postorder_group_a[u]:
             enter_table[u][uA] = {}
             for uB in postorder_group_b[u]:
-                score_double_exit = calculate_score_double_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b)
+                score_both_exit = calculate_score_both_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b)
                 #print "{0} - {1}".format(uA, uB)
                 ancestry = ancestral_table[uA[1]][uB[1]]
 
@@ -484,20 +439,21 @@ def new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_gr
                 # header for a more complete explanation on this data structure.
                 if ancestry == 'in':
                     score = calculate_incomparable_enter_score(zero_loss, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                                                               score_double_exit)
+                                                               score_both_exit)
                 elif ancestry == 'eq':
                     score = calculate_equal_enter_score(zero_loss, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                                                        score_double_exit, single_exit_table)
+                                                        score_both_exit, exit_table)
                 # The only difference between the 'des' and 'an' cases are whether the nodes should be swapped
                 elif ancestry == 'des':
                     score = calculate_ancestral_enter_score(zero_loss, True, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                                                            score_double_exit, single_exit_table)
+                                                            score_both_exit, exit_table)
                 elif ancestry == 'an':
                     score = calculate_ancestral_enter_score(zero_loss, False, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                                                            score_double_exit, single_exit_table)
+                                                            score_both_exit, exit_table)
                 else:
                     raise ValueError("Invalid ancestry type '{0}', check calculate_ancestral_table().".format(ancestry))
                 enter_table[u][uA][uB] = score
+
         if debug:
             print_table_nicely(enter_table[u], ", ", "EnterTable({0})".format(u))
     # Now, the diameter of this reconciliation will be the maximum entry on the enter table.
@@ -573,7 +529,7 @@ def clean_graph(dtl_recon_graph, gene_tree_root):
         dtl_recon_graph[key] = filter(lambda e: not isinstance(e, (float, int)), dtl_recon_graph[key])
 
 
-def write_to_csv(csv_file, costs, filename, mpr_count, diameter, gene_node_count,
+def write_to_csv(csv_file, costs, filename, mpr_count, diameter, gene_node_count, species_node_count,
                  DTLReconGraph_time_taken, diameter_time_taken):
     """Takes a large amount of information about a diameter solution and appends it as one row to the provided csv file.
     :param csv_file:                    The csv file to write to
@@ -582,6 +538,7 @@ def write_to_csv(csv_file, costs, filename, mpr_count, diameter, gene_node_count
     :param mpr_count:                   The number of MPRS found
     :param diameter:                    The diameter that was found
     :param gene_node_count:             The total number of nodes in the gene tree
+    :param species_node_count:          The total number of nodes in the species tree
     :param DTLReconGraph_time_taken:    The amount of time that DTLReconGraph took to run
     :param diameter_time_taken:         The amount of time that Diameter took to run
     """
@@ -592,10 +549,10 @@ def write_to_csv(csv_file, costs, filename, mpr_count, diameter, gene_node_count
 
         # Write the headers if we need to.
         if not file_exists:
-            writer.writerow(["File Name", "Costs", "MPR Count", "Diameter", "Gene Node Count",
+            writer.writerow(["File Name", "Costs", "MPR Count", "Diameter", "Gene Node Count", "Species Node Count",
                              "DTLReconGraph Computation Time", "Diameter Computation Time", "Date"])
 
-        writer.writerow([filename, costs, mpr_count, diameter, gene_node_count,
+        writer.writerow([filename, costs, mpr_count, diameter, gene_node_count, species_node_count,
                          DTLReconGraph_time_taken, diameter_time_taken, time.strftime("%c")])
 
 
@@ -624,15 +581,15 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     start_time = time.clock()
 
     # Get everything we need from DTLReconGraph
-    species_tree, gene_tree, dtl_recon_graph, mpr_count, _ = DTLReconGraph.reconcile(filename, D, T, L)
+    edge_species_tree, edge_gene_tree, dtl_recon_graph, mpr_count, _ = DTLReconGraph.reconcile(filename, D, T, L)
 
     # Record the time that this code starts
 
     # The gene tree needs to be in node format, not edge format, so we find that now.
     # (This also puts the gene_tree into postorder, as an ordered dict)
-    gene_tree, gene_tree_root, gene_node_count = reformat_tree(gene_tree, "pTop")
+    gene_tree, gene_tree_root, gene_node_count = reformat_tree(edge_gene_tree, "pTop")
 
-    species_tree, species_tree_root, species_node_count = reformat_tree(species_tree, "hTop")
+    species_tree, species_tree_root, species_node_count = reformat_tree(edge_species_tree, "hTop")
 
     # The DTL reconciliation graph as provided by DTLReconGraph has some extraneous numbers. We remove those here.
     clean_graph(dtl_recon_graph, gene_tree_root)
@@ -667,11 +624,13 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     # Now, we write our results to a csv file.
     if log is not None:
         costs = "D: {0} T: {1} L: {2}".format(D, T, L)
-        write_to_csv(log + ".csv", costs, filename, mpr_count, diameter, gene_node_count, DTLReconGraph_time_taken, diameter_time_taken)
-        write_to_csv(log + "_zl.csv", costs, filename, mpr_count, zl_diameter, gene_node_count, DTLReconGraph_time_taken,
+        write_to_csv(log + ".csv", costs, filename, mpr_count, diameter, gene_node_count, species_node_count, DTLReconGraph_time_taken, diameter_time_taken)
+        write_to_csv(log + "_zl.csv", costs, filename, mpr_count, zl_diameter, gene_node_count, species_node_count, DTLReconGraph_time_taken,
                      zl_diameter_time_taken)
     # And we're done.
     return
+
+
 
 def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, debug=False, verbose=True):
     """Iterates over a lot of input files and finds the diameter of all of them.
