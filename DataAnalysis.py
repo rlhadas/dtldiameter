@@ -101,21 +101,22 @@ def make_plot(file, zero_loss, non_normalized, timings, gene_count_list, diamete
         DP_time = ax[0]
         diameter_time = ax[1]
         total_time = ax[2]
-        DP_time.scatter(gene_count_list, DP_timings, c=diameter_over_gene_list, s=size)
+        DP_time.scatter(gene_count_list, DP_timings, c=color, s=size)
         DP_time.set_xlabel("Gene Tree Size")
         DP_time.set_ylabel("Time (seconds)")
         DP_time.set_title("Computing Reconciliation Graph")
         DP_time.grid()
         DP_time.set_yscale('log')
         DP_time.set_xscale('log')
-        diameter_time.scatter(gene_count_list, diameter_timings, c=diameter_over_gene_list, s=size)
+        diameter_time.scatter(gene_count_list, diameter_timings, c=color, s=size)
         diameter_time.set_xlabel("Gene Tree Size")
         diameter_time.set_ylabel("Time (seconds)")
         diameter_time.set_title("Computing Diameter")
         diameter_time.grid()
         diameter_time.set_yscale('log')
+        diameter_time.set_ylim(0.001,10**4)
         diameter_time.set_xscale('log')
-        total_time.scatter(gene_count_list, total_timings, c=diameter_over_gene_list, s=size)
+        total_time.scatter(gene_count_list, total_timings, c=color, s=size)
         total_time.set_xlabel("Gene Tree Size")
         total_time.set_ylabel("Time (seconds)")
         total_time.set_title("Total Running Time")
@@ -163,8 +164,9 @@ def findExtrema(csv_file, zero_loss, non_normalized, timings, plot, latex):
                 mpr = float(row[2])
                 diameter = int(row[3])
                 gene_count = int(row[4])
-                DP_timings += [float(row[5])]
-                diameter_timings += [float(row[6])]
+                gene_count = int(row[5]) #TODO reverse this
+                DP_timings += [float(row[6])]
+                diameter_timings += [float(row[7])]
                 total_timings += [DP_timings[-1] + diameter_timings[-1]]
                 mpr_list += [mpr]
                 diameter_list += [diameter]
@@ -212,8 +214,9 @@ def findExtrema(csv_file, zero_loss, non_normalized, timings, plot, latex):
                     mpr = float(row[2])
                     diameter = int(row[3])
                     gene_count = int(row[4])
-                    DP_timings += [float(row[5])]
-                    diameter_timings += [float(row[6])]
+                    species_count = int(row[5])
+                    DP_timings += [float(row[6])]
+                    diameter_timings += [float(row[7])]
                     total_timings += [DP_timings[-1] + diameter_timings[-1]]
                     mpr_list += [mpr]
                     diameter_list += [diameter]

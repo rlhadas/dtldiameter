@@ -11,9 +11,6 @@
 #   Event:
 #       ('type', child_mapping_node1, child_mapping_node2)
 #
-#   Scored DTL reconciliation graph:
-#       { mapping_node: {event1:score, event2:score, ...} ...}
-#
 #   Mapping node:
 #       ('gene_node','SPECIES_NODE')
 #   or in loss or contemporary event nodes:
@@ -56,7 +53,9 @@ def preorderMappingNodeSort(preorderGeneNodeList, preorderSpeciesList, mappingNo
     for i, node in enumerate(preorderSpeciesList):
         speciesLevelLookup[node] = i
 
-    # The lambda function looks up the
+    # The lambda function looks up the level of both the gene node and the species nodes and adds them together to
+    # get a number to give to the sorting algorithm for that mapping node. The gene node is weighted far more heavily
+    # than the species node to make sure it is always more significant.
     sortedList = sorted(mappingNodeList, key=lambda node: geneLevelLookup[node[0]] + speciesLevelLookup[node[1]])
 
     return sortedList
@@ -73,8 +72,9 @@ def generateScores(preorderMappingNodeList, DTLReconGraph, geneRoot):
                                     1. The number of MPRs in DTLReconGraph.
     """
 
-    # Initialize the memo
-    memo = dict()
+    # Initialize the dictionary that will store mapping node and event counts (which also acts as a memoization
+    # dictionary)
+    counts = dict()
 
     # Initialize the very start count, for the first call of countMPRs
     count = 0
@@ -82,7 +82,7 @@ def generateScores(preorderMappingNodeList, DTLReconGraph, geneRoot):
     # Loop over all given minimum cost reconciliation roots
     for mappingNode in preorderMappingNodeList:
         if mappingNode[0] == geneRoot:
-            count += countMPRs(mappingNode, DTLReconGraph, memo)
+            count += countMPRs(mappingNode, DTLReconGraph, counts)
 
     # Initialize the scores dict. This dict contains the frequency score of each
     scores = dict()
@@ -101,19 +101,19 @@ def generateScores(preorderMappingNodeList, DTLReconGraph, geneRoot):
 
         # If we are at the root of the gene tree, then we need to initialise the score entry
         if mappingNode[0] == geneRoot:
-            scores[mappingNode] = memo[mappingNode] / float(count)
-        calculateScoresForChildren(mappingNode, DTLReconGraph, eventScores, scores, memo)
+            scores[mappingNode] = counts[mappingNode] / float(count)
+        calculateScoresForChildren(mappingNode, DTLReconGraph, eventScores, scores, counts)
 
     return eventScores, count
 
 
-def countMPRs(mappingNode, DTLReconGraph, memo):
+def countMPRs(mappingNode, DTLReconGraph, counts):
     """
     :param mappingNode: an individual mapping node that maps a node
     for the parasite tree onto a node of the host tree, in the format
     (p, h), where p is the parasite node and h is the host node
     :param DTLReconGraph: A DTL reconciliation graph (see data structure quick reference at top of file)
-    :param memo: a dictionary representing the running memo that is passed
+    :param counts: a dictionary representing the running memo that is passed
     down recursive calls of this function. At first it is just an empty
     dictionary (see above function), but as it gets passed down calls, it collects
     keys of mapping nodes and values of MPR counts. This memo improves runtime
@@ -121,9 +121,9 @@ def countMPRs(mappingNode, DTLReconGraph, memo):
     :return: the number of MPRs spawned below the given mapping node in the graph
     """
 
-    # Search the memo dictionary for previously calculated results
-    if mappingNode in memo:
-        return memo[mappingNode]
+    # Search the counts dictionary for previously calculated results (this is the memoization)
+    if mappingNode in counts:
+        return counts[mappingNode]
 
     # Base case, occurs if being called on a child produced by a loss or contemporary event
     if mappingNode == (None, None):
@@ -140,16 +140,16 @@ def countMPRs(mappingNode, DTLReconGraph, memo):
         mappingChild2 = eventNode[2]
 
         # Add the product of the counts of both children (over all children) for this event to get the parent's count
-        memo[eventNode] = countMPRs(mappingChild1, DTLReconGraph, memo) * countMPRs(mappingChild2, DTLReconGraph, memo)
-        count += memo[eventNode]
+        counts[eventNode] = countMPRs(mappingChild1, DTLReconGraph, counts) * countMPRs(mappingChild2, DTLReconGraph, counts)
+        count += counts[eventNode]
 
-    # Save the result in the memo
-    memo[mappingNode] = count
+    # Save the result in the counts
+    counts[mappingNode] = count
 
     return count
 
 
-def calculateScoresForChildren(mappingNode, DTLReconGraph, scoredGraph, scores, memo):
+def calculateScoresForChildren(mappingNode, DTLReconGraph, scoredGraph, scores, counts):
     """
     This function calculates the frequency score for every mapping node that is a child of an event node that is a
     child of the given mapping node, and stores them in scoredGraph.
@@ -158,19 +158,18 @@ def calculateScoresForChildren(mappingNode, DTLReconGraph, scoredGraph, scores, 
     :param scoredGraph:     The scored DTL reconciliation graph (see data structure quick reference at top of file)
     :param scores:          The score for each mapping node (which will ultimately be thrown away) that this function
                             helps build up
-    :param memo:            The counts generated in countMPRs
+    :param counts:          The counts generated in countMPRs
     :return:                Nothing, but scoredGraph is built up.
     """
     events = DTLReconGraph[mappingNode]
 
     assert scores[mappingNode] != 0
-    # This multiplier is arcane garbage that we all immediately forgot how it works, but it gets the job done.
-    multiplier = float(scores[mappingNode])/memo[mappingNode]
-
+    # This multiplier is arcane magic that we all immediately forgot how it works, but it gets the job done.
+    multiplier = float(scores[mappingNode]) / counts[mappingNode]
     # Iterate over every event
     for eventNode in events:
 
-        scoredGraph[eventNode] = multiplier * memo[eventNode]
+        scoredGraph[eventNode] = multiplier * counts[eventNode]
 
         # Save the children produced by the current event
         mappingChild1 = eventNode[1]
