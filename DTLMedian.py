@@ -246,7 +246,34 @@ def findMedian(DTLReconGraph, eventScores, postorderMappingNodes, MPRRoots):
 
     med_recon_graph = buildMedianReconGraph(sum_freqs, med_root)
 
+    # Check to make sure median is a subgraph of the DTL reconciliation
+    assert checkSubgraph(DTLReconGraph, med_recon_graph), 'Median is not a subgraph of the recon graph!'
+
     return med_recon_graph, n_med_recons, med_root
+
+
+def checkSubgraph(dtlrecon, subrecon):
+    """
+    :param dtlrecon: A DTL reconciliation graph, the one which produced the given median
+    :param subrecon: Another reconciliation graph, the one which is supposed to be a subgraph of the
+    DTL reconciliation
+    :return: a boolean value: True if the sub-reconciliation is really a subgraph of the original DTL reconciliation,
+    False otherwise
+    """
+
+    # Loop over all mapping nodes contained in the median reconciliation graph
+    for mapnode in subrecon:
+
+        # Loop over mapping nodes
+        if mapnode not in dtlrecon:
+            return False
+        else:
+
+            # Now events for a given mapping node
+            for event in subrecon[mapnode]:
+                if event not in dtlrecon[mapnode]:
+                    return False
+    return True
 
 
 def buildMedianReconGraph(eventDict, root):
@@ -310,6 +337,7 @@ def t(filename='le1', D=2, T=3, L=1):
 def calc_med_diameter(log="COG_Median", D=2, T=3, L=1):
 
     costs = "D:{0} T:{1} L:{2}".format(D, T, L)
+    
     # Loop through all the files in TreeLifeData
     for i in range(1, 5666):
 
@@ -317,6 +345,7 @@ def calc_med_diameter(log="COG_Median", D=2, T=3, L=1):
         filenum = str(i).zfill(4)
         filename = "TreeLifeData/COG{0}.newick".format(filenum)
         print("Calculating {0} now!".format(filename))
+        
         try:
             species_tree, gene_tree, dtl_recon_graph, menpmn, mdenpmn, data, mpr_count, best_roots = RG.reconcile(
                 filename, D, T, L)
