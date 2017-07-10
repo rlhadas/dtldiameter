@@ -334,8 +334,8 @@ def compare_log_ratios(log1="New_COG_02.csv", log2="COG_Median_med.csv", output_
     norm_diameter = ax[1]
     ax[0].set_ylabel("Ratio (Median Diameter Over Diameter)")
 
-    ratio_ylim_b = -0.1
-    ratio_ylim_t = 1.1
+    ratio_ylim_b = 0.5
+    ratio_ylim_t = 1
 
     norm_diameter.scatter(nonzero_gene, ratios, c=color, s=size)
     norm_diameter.set_xlabel("Gene Tree Size")

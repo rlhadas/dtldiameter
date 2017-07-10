@@ -51,8 +51,8 @@
 
 # 4. ON THE DYNAMIC PROGRAMMING TABLES AND THEIR FUNCTIONS:
 #
-#       The Diameter algorithm involves the use of two dynamic programming tables:
-#   The enter_table and the exit_table.
+#       The Diameter algorithm involves the use of three dynamic programming tables:
+#   The enter_table and the two exit_table s.
 #
 #       The tables are described in detail in the paper, but a summary of their functions follows:
 #
@@ -60,9 +60,12 @@
 #   of reconciliation subtrees rooted at uA and uB can differ for when uA and uB are used to enter Group(u). Running the
 #   program in debug mode will print out this table at every u.
 #
-#       The exit_table has the format [u][uA][uB] (where uA is an ancestor of uB or uA == uB). It contains the  largest
-#   number of event nodes that each pair of reconciliation subtrees rooted at uA and uB can differ for when uA leads
-#   to an exit event.
+#       exit_table_a has the format [u][uA][uB] (where uA is an ancestor of uB or uA == uB). exit_table_b has the format
+#   [u][uB][uA] (where uB is an ancestor of uA or uA == uB). They contain the largest
+#   number of event nodes that each pair of reconciliation subtrees rooted at uA and uB can differ for when uA (for
+#   exit_table_a) or uB (for exit_table_b) leads to an exit event. This table is two tables, rather than one, to allow
+#   for the generalization of the Diameter algorithm to work on any pair of reconciliation graphs based on the same
+#   species tree and gene tree.
 
 
 # -1. DATA STRUCTURE QUICK REFERENCE:
