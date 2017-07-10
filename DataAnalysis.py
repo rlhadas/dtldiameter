@@ -286,6 +286,83 @@ def compare_logs(log1="New_COG_01.csv", log2="New_COG_02_zl.csv"):
             #print "Match in {0}: {1} vs. {2}".format(filenames[i], log1_diams[i], log2_diams[i])
     print "{0} mismatches, or {0}/{2} = {1}%".format(mismatches,mismatches/(float(count))*100,count)
 
+
+def compare_log_ratios(log1="New_COG_02.csv", log2="COG_Median_med.csv", output_log="Compare.csv"):
+    """"""
+    log1_diams = []
+    log2_diams = []
+    gene_node_count = []
+    mprs = []
+    filenames = []
+    count = 0
+    with open(log1) as file:
+        reader = csv.reader(file)
+        for i, row in enumerate(reader):
+            if i != 0:
+                filenames += [row[0]]
+                log1_diams += [row[3]]
+                gene_node_count += [int(row[4])]
+                mprs += [int(row[2])]
+    with open(log2) as file:
+        reader = csv.reader(file)
+        for i, row in enumerate(reader):
+            if i != 0:
+                log2_diams += [row[3]]
+    ratios = []
+    nonzero_gene = []
+    nonzero_mprs = []
+    with open(output_log, 'w') as file:
+        writer = csv.writer(file)
+        writer.writerow(["Filename","Regular","Median","Ratio"])
+        for i in range(0, len(log1_diams)):
+            if int(log1_diams[i]) * int(log2_diams[i]) is not 0:
+                ratios += [float(log2_diams[i])/float(log1_diams[i])]
+                nonzero_gene += [gene_node_count[i]]
+                nonzero_mprs += [mprs[i]]
+                writer.writerow([filenames[i], log1_diams[i], log2_diams[i], ratios[-1]])
+    displayListValues(ratios, "Ratio (Median Diameter Over Diameter)")
+    size = 4
+    color = 'black'
+
+    gene_xlim = max(nonzero_gene) * 1.05
+
+    name = ""
+    fig, ax = plt.subplots(ncols=3, nrows=1)
+    fig.canvas.set_window_title("Ratios")
+    norm_diameter_hist = ax[0]
+    norm_mpr_diameter = ax[2]
+    norm_diameter = ax[1]
+    ax[0].set_ylabel("Ratio (Median Diameter Over Diameter)")
+
+    ratio_ylim_b = -0.1
+    ratio_ylim_t = 1.1
+
+    norm_diameter.scatter(nonzero_gene, ratios, c=color, s=size)
+    norm_diameter.set_xlabel("Gene Tree Size")
+    norm_diameter.set_xlim(0, gene_xlim)
+    # norm_diameter.set_ylabel("Diameter (normalized to gene node count)")
+    norm_diameter.set_ylim(ratio_ylim_b, ratio_ylim_t)
+    norm_diameter.set_title("Ratio vs. Gene Tree Size")
+    norm_diameter.grid()
+
+    norm_diameter_hist.grid()
+    norm_diameter_hist.hist(ratios, 100, orientation='horizontal')
+    # norm_diameter_hist.set_ylabel("Diameter (normalized to gene node count)")
+    norm_diameter_hist.set_xlabel("Number of Gene Families")
+    norm_diameter_hist.set_title("Ratio Count")
+    norm_diameter_hist.set_ylim(ratio_ylim_b, ratio_ylim_t)
+
+    norm_mpr_diameter.scatter(nonzero_mprs, ratios, c=color, s=size)
+    norm_mpr_diameter.set_ylim(ratio_ylim_b, ratio_ylim_t)
+    norm_mpr_diameter.set_xlabel("MPR Count")
+    norm_mpr_diameter.set_title("Ratio vs. MPR Count")
+    norm_mpr_diameter.grid()
+    norm_mpr_diameter.set_xscale('log')
+
+    plt.show()
+
+
+
 def main():
     """Processes command line arguments"""
     usage = "usage: %prog [options] file"
