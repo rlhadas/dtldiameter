@@ -309,11 +309,10 @@ def t(filename='le1', D=2, T=3, L=1):
 def checkSkew():
 
     # We want to loop through all files
-    for i in range(1, 5500):
+    for i in range(1, 5666):
 
         # Start building the number of the tree of life data file
-        filenum = str(i)
-        filenum = ('0' * (4 - len(filenum))) + filenum
+        filenum = str(i).zfill(4)
 
         try:
             data, datamean, datamedian = t('TreeLifeData/COG' + filenum + '.newick')
