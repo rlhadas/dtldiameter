@@ -287,7 +287,7 @@ def calculate_incomparable_enter_score(zero_loss, enter_table, u, uA, uA_loss_ev
 
 
 def calculate_equal_enter_score(zero_loss, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                                score_both_exit, exit_table):
+                                score_both_exit, exit_table_a, exit_table_b):
     """Returns the enter table entry for [uA][uB] with the assumption that uA equals uB (but they might have different
     loss events leaading from them!
     :param zero_loss:           Whether losses should not count
@@ -314,15 +314,15 @@ def calculate_equal_enter_score(zero_loss, enter_table, u, uA, uA_loss_events, u
 
     for event in uA_loss_events:
         a_child = event[1][1]
-        scores += [exit_table[u][uB][(u, a_child)] + cost(event, zero_loss)]
+        scores += [exit_table_b[u][uB][(u, a_child)] + cost(event, zero_loss)]
     for event in uB_loss_events:
         b_child = event[1][1]
-        scores += [exit_table[u][uA][(u, b_child)] + cost(event, zero_loss)]
+        scores += [exit_table_a[u][uA][(u, b_child)] + cost(event, zero_loss)]
     return max(scores)
 
 
 def calculate_ancestral_enter_score(zero_loss, is_swapped, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                                    score_both_exit, exit_table):
+                                    score_both_exit, exit_table_a, exit_table_b):
     """Returns the enter table entry for [uA][uB] with the assumption that A is an ancestor of B (if is_swapped is
     false) or that B is an ancestor of A (if is_swapped is true). In both cases, it will compute the single exit
     table entry of the pair (with the ancestor going first, of course).
@@ -352,18 +352,18 @@ def calculate_ancestral_enter_score(zero_loss, is_swapped, enter_table, u, uA, u
             b_child = event[1][1]
             # Add the score of taking this loss (the exit_table's entry for the mapping node that this loss
             # leads to, plus the cost of a loss)
-            scores += [exit_table[u][uA][(u, b_child)] + cost(event, zero_loss)]
+            scores += [exit_table_a[u][uA][(u, b_child)] + cost(event, zero_loss)]
 
         # Initialize the ancestor's (uA) entry in exit_table, if need be.
-        if uA not in exit_table[u]:
-            exit_table[u][uA] = {}
-        exit_table[u][uA][uB] = max(scores)
+        if uA not in exit_table_a[u]:
+            exit_table_a[u][uA] = {}
+        exit_table_a[u][uA][uB] = max(scores)
 
-        enter_scores = [exit_table[u][uA][uB]]
+        enter_scores = [exit_table_a[u][uA][uB]]
         for event in uA_loss_events:
             a_child = event[1][1]
             enter_scores += [enter_table[u][(u, a_child)][uB] + cost(event, zero_loss)]
-        return  max(enter_scores)
+        return max(enter_scores)
     else:
         # uB is an ancestor to uA
         # Tally up the scores of the descendant's (uA's) loss events
@@ -371,14 +371,14 @@ def calculate_ancestral_enter_score(zero_loss, is_swapped, enter_table, u, uA, u
             a_child = event[1][1]
             # Add the score of taking this loss (the exit_table's entry for the mapping node that this loss
             # leads to, plus the cost of a loss)
-            scores += [exit_table[u][uB][(u, a_child)] + cost(event, zero_loss)]
+            scores += [exit_table_b[u][uB][(u, a_child)] + cost(event, zero_loss)]
 
         # Initialize the ancestor's (uB) entry in exit_table, if need be.
-        if uB not in exit_table[u]:
-            exit_table[u][uB] = {}
-        exit_table[u][uB][uA] = max(scores)
+        if uB not in exit_table_b[u]:
+            exit_table_b[u][uB] = {}
+        exit_table_b[u][uB][uA] = max(scores)
         
-        enter_scores = [exit_table[u][uB][uA]]
+        enter_scores = [exit_table_b[u][uB][uA]]
         for event in uB_loss_events:
             b_child = event[1][1]
             enter_scores += [enter_table[u][uA][(u, b_child)] + cost(event, zero_loss)]
@@ -420,17 +420,23 @@ def new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_gr
         postorder_group_b[u] = sorted(postorder_group_b[u], key=lambda mapping: postorder_species_nodes.index(mapping[1]))
     ancestral_table = calculate_ancestral_table(species_tree)
 
-    exit_table = {}
+    print_table_nicely(ancestral_table, ", ", "Ancestral", "literal")
+
+    exit_table_a = {}
+    exit_table_b = {}
 
     enter_table = {}
 
     for u in postorder_gene_nodes:
         enter_table[u] = {}
-        exit_table[u] = {}
+        exit_table_a[u] = {}
+        exit_table_b[u] = {}
         for uA in postorder_group_a[u]:
             enter_table[u][uA] = {}
             for uB in postorder_group_b[u]:
                 score_both_exit = calculate_score_both_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b)
+
+
                 #print "{0} - {1}".format(uA, uB)
                 ancestry = ancestral_table[uA[1]][uB[1]]
 
@@ -446,20 +452,28 @@ def new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_gr
                                                                score_both_exit)
                 elif ancestry == 'eq':
                     score = calculate_equal_enter_score(zero_loss, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                                                        score_both_exit, exit_table)
+                                                        score_both_exit, exit_table_a, exit_table_b)
                 # The only difference between the 'des' and 'an' cases are whether the nodes should be swapped
                 elif ancestry == 'des':
                     score = calculate_ancestral_enter_score(zero_loss, True, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                                                            score_both_exit, exit_table)
+                                                            score_both_exit, exit_table_a, exit_table_b)
                 elif ancestry == 'an':
                     score = calculate_ancestral_enter_score(zero_loss, False, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                                                            score_both_exit, exit_table)
+                                                            score_both_exit, exit_table_a, exit_table_b)
                 else:
                     raise ValueError("Invalid ancestry type '{0}', check calculate_ancestral_table().".format(ancestry))
                 enter_table[u][uA][uB] = score
+                if debug:
+                    print "{0} -{1}-> {2}, Double-equal\t{3}\tScore:{4}".format(uA,ancestry,uB,score_both_exit,score)
+
 
         if debug:
             print_table_nicely(enter_table[u], ", ", "EnterTable({0})".format(u))
+
+    if debug:
+        print "Exit Table A: {0}".format(exit_table_a)
+        print ""
+        print "Exit Table b: {0}".format(exit_table_b)
     # Now, the diameter of this reconciliation will be the maximum entry on the enter table.
     diameter = 0
     for uA in enter_table[gene_tree_root]:
@@ -491,11 +505,11 @@ def print_table_nicely(table, deliminator, name="\t", dtype="map"):
         return
 
     line = "\033[4m{0}\033[1m".format(name)  # Underline top row, bold column headers
-    for column in table:
+    for column in table[table.keys()[0]]:
         if dtype == "event":
             line += "\t{0}".format(event_to_string(column))
-        elif dtype == "path":
-            line += "\t{0}{1}{2}{3}{4}".format(column[0][0], column[0][1], deliminator, column[1][0], column[1][1])
+        elif dtype == "literal":
+            line+=  "\t{0}".format(column)
         else:
             line += "\t{0}{1}{2}".format(str(column[0]), deliminator, str(column[1]))
     print line + "\033[0m"
@@ -509,15 +523,15 @@ def print_table_nicely(table, deliminator, name="\t", dtype="map"):
         line = line_color + "\t\033[4m\033[1m"  # Add bolding and underline to row headers
         if dtype == "event":
             line += "{0}".format(event_to_string(row))
-        elif dtype == "path":
-            line += "{0}{1}{2}{3}{4}".format(row[0][0], row[0][1], deliminator, row[1][0], row[1][1])
+        elif dtype == "literal":
+            line += "{0}".format(column)
         else:
             line += "{0}{1}{2}".format(str(row[0]), deliminator, str(row[1]))
         line += "\033[0m\t" + line_color  # Remove bolding for entries, then return to line color
-        for column in table:
+        for column in table[row]:
             if row == column:
                 line += "\033[33m"  # Highlight diagonals
-            line += str(table[column][row]) + "\t"
+            line += str(table[row][column]) + "\t"
             if row == column:
                 line += line_color
         print line
