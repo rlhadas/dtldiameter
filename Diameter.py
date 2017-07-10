@@ -2,6 +2,9 @@
 # Written by Eli Zupke and Andrew Ramirez June 2017
 # It is based off of Jordan Haack's work on a polynomial-time algorithm for the DTL MPR Diameter Problem
 
+# TODO: WARNING: This code is old, and has been superseded to the much faster NewDiameter. This code is also wrong in
+# TODO: 2% of the cases.
+
 # 0. ON THE PAPER
 #
 #       This program is based off of an algorithm written by Jordan Haack. There is a paper that describes this

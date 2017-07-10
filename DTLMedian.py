@@ -305,41 +305,65 @@ def buildMedianReconGraph(eventDict, root):
     return subgraph_recon_dict
 
 
-# Test function
-def t(filename='le1', D=2, T=3, L=1):
+def find_median(filename='le1', D=2, T=3, L=1):
 
-    # Get all of the important values to start our test
-    species_tree, gene_tree, dtl_recon_graph, menpmn, mdenpmn, data, mpr_count, best_roots = RG.reconcile(filename, D, T, L)
+    species_tree, gene_tree, dtl_recon_graph, menpmn, mdenpmn, data, mpr_count, best_roots = RG.reconcile(
+        filename, D, T, L)
 
     # Reformat gene tree and get info on it, as well as for the species tree in the following line
     postorder_gene_tree, gene_tree_root, gene_node_count = NewDiameter.reformat_tree(gene_tree, "pTop")
-    postorder_species_tree, species_tree_root, species_node_count = NewDiameter.reformat_tree(species_tree, "hTop")
+    postorder_species_tree, species_tree_root, species_node_count = NewDiameter.reformat_tree(species_tree,
+                                                                                              "hTop")
 
     # Get a list of the mapping nodes in preorder
-    preorder_mapping_node_list = preorderMappingNodeSort(postorder_gene_tree, postorder_species_tree, dtl_recon_graph.keys())
+    preorder_mapping_node_list = preorderMappingNodeSort(postorder_gene_tree, postorder_species_tree,
+                                                         dtl_recon_graph.keys())
 
     # Find the dictionary for frequency scores for the given mapping nodes and graph, as well as the given gene root
     scoresDict = generateScores(list(reversed(preorder_mapping_node_list)), dtl_recon_graph, gene_tree_root)
-    median_reconciliation, n_meds, _ = findMedian(dtl_recon_graph, scoresDict[0], preorder_mapping_node_list, best_roots)
+
+    median_reconciliation, n_meds, _ = findMedian(dtl_recon_graph, scoresDict[0], preorder_mapping_node_list,
+                                                  best_roots)
+
+    return median_reconciliation
+
+def calc_med_diameter(filename='TreeLifeData/COG0195.newick', log=None, D=2, T=3, L=1):
+
+    species_tree, gene_tree, dtl_recon_graph, menpmn, mdenpmn, data, mpr_count, best_roots = RG.reconcile(
+        filename, D, T, L)
+
+    # Reformat gene tree and get info on it, as well as for the species tree in the following line
+    postorder_gene_tree, gene_tree_root, gene_node_count = NewDiameter.reformat_tree(gene_tree, "pTop")
+    postorder_species_tree, species_tree_root, species_node_count = NewDiameter.reformat_tree(species_tree,
+                                                                                              "hTop")
+
+    # Get a list of the mapping nodes in preorder
+    preorder_mapping_node_list = preorderMappingNodeSort(postorder_gene_tree, postorder_species_tree,
+                                                         dtl_recon_graph.keys())
+
+    # Find the dictionary for frequency scores for the given mapping nodes and graph, as well as the given gene root
+    scoresDict = generateScores(list(reversed(preorder_mapping_node_list)), dtl_recon_graph, gene_tree_root)
+    median_reconciliation, n_meds, _ = findMedian(dtl_recon_graph, scoresDict[0], preorder_mapping_node_list,
+                                                  best_roots)
 
     # Clean up the reconciliation graph
     NewDiameter.clean_graph(dtl_recon_graph, gene_tree_root)
 
     # Use the diameter algorithm to find the diameter between the recon graph and its median
-    diameter = NewDiameter.new_diameter_algorithm(postorder_species_tree, postorder_gene_tree, gene_tree_root, median_reconciliation, dtl_recon_graph, True, False)
+    diameter = NewDiameter.new_diameter_algorithm(postorder_species_tree, postorder_gene_tree, gene_tree_root,
+                                                  dtl_recon_graph, median_reconciliation, False, False)
+    print("Median diameter found: {0}".format(diameter))
 
-    # Since this function contains a TON of information in its variables, any value can be changed to be the return
-    # value to allow the user to get pretty much any info they need
-    return data, menpmn, mdenpmn#diameter
+    if log is not None:
+        costs = "D:{0} T:{1} L:{2}".format(D, T, L)
+        NewDiameter.write_to_csv(log + "_med.csv", costs, filename, mpr_count, diameter, gene_node_count,
+                             species_node_count, -1, -1)  # TODO: maybe add runtime data?
 
 
-# Test function to check the skewedness of the number of event nodes per mapping node
-def calc_med_diameter(log="COG_Median", D=2, T=3, L=1):
-
-    costs = "D:{0} T:{1} L:{2}".format(D, T, L)
+def rep_calc_med_diameter(min=1, max=5666, log="COG_Median_2", D=2, T=3, L=1):
     
     # Loop through all the files in TreeLifeData
-    for i in range(1, 5666):
+    for i in range(min, max):
 
         # Start building the number of the tree of life data file
         filenum = str(i).zfill(4)
@@ -347,32 +371,7 @@ def calc_med_diameter(log="COG_Median", D=2, T=3, L=1):
         print("Calculating {0} now!".format(filename))
         
         try:
-            species_tree, gene_tree, dtl_recon_graph, menpmn, mdenpmn, data, mpr_count, best_roots = RG.reconcile(
-                filename, D, T, L)
-
-            # Reformat gene tree and get info on it, as well as for the species tree in the following line
-            postorder_gene_tree, gene_tree_root, gene_node_count = NewDiameter.reformat_tree(gene_tree, "pTop")
-            postorder_species_tree, species_tree_root, species_node_count = NewDiameter.reformat_tree(species_tree,
-                                                                                                      "hTop")
-
-            # Get a list of the mapping nodes in preorder
-            preorder_mapping_node_list = preorderMappingNodeSort(postorder_gene_tree, postorder_species_tree,
-                                                                 dtl_recon_graph.keys())
-
-            # Find the dictionary for frequency scores for the given mapping nodes and graph, as well as the given gene root
-            scoresDict = generateScores(list(reversed(preorder_mapping_node_list)), dtl_recon_graph, gene_tree_root)
-            median_reconciliation, n_meds, _ = findMedian(dtl_recon_graph, scoresDict[0], preorder_mapping_node_list,
-                                                          best_roots)
-
-            # Clean up the reconciliation graph
-            NewDiameter.clean_graph(dtl_recon_graph, gene_tree_root)
-
-            # Use the diameter algorithm to find the diameter between the recon graph and its median
-            diameter = NewDiameter.new_diameter_algorithm(postorder_species_tree, postorder_gene_tree, gene_tree_root,
-                                                          median_reconciliation, dtl_recon_graph, False, False)
-            print("Median diameter found: {0}".format(diameter))
-            NewDiameter.write_to_csv(log + "_med.csv", costs, filename, mpr_count, diameter, gene_node_count,
-                                     species_node_count, -1, -1) #TODO: maybe add runtime data?
+            calc_med_diameter(filename, log, D, T, L)
         except IOError:
             print('File %s does not exist' % filename)
         except KeyboardInterrupt:
