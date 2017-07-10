@@ -31,7 +31,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import DTLReconGraph as RG
 import NewDiameter
-
+import sys
+import traceback
 
 def preorderMappingNodeSort(preorderGeneNodeList, preorderSpeciesList, mappingNodeList):
     """Sorts a list of mapping nodes into double preorder (the gene node is more significant than the species node, and)
@@ -333,26 +334,52 @@ def t(filename='le1', D=2, T=3, L=1):
 
 
 # Test function to check the skewedness of the number of event nodes per mapping node
-def checkSkew():
+def calc_med_diameter(log="COG_Median", D=2, T=3, L=1):
 
-    # We want to loop through all files
+    costs = "D:{0} T:{1} L:{2}".format(D, T, L)
+    
+    # Loop through all the files in TreeLifeData
     for i in range(1, 5666):
 
         # Start building the number of the tree of life data file
         filenum = str(i).zfill(4)
-
+        filename = "TreeLifeData/COG{0}.newick".format(filenum)
+        print("Calculating {0} now!".format(filename))
+        
         try:
-            data, datamean, datamedian = t('TreeLifeData/COG' + filenum + '.newick')
-            plt.hist(data)
-            plt.title('File: %s' % ('TreeLifeData/COG' + filenum + '.newick'))
-            plt.ylabel('Count')
-            plt.xlabel('Number of event nodes in a mapping node')
-            print('mean: %s, median: %s' % (datamean, datamedian))
-            plt.show()
-            plt.clf()
+            species_tree, gene_tree, dtl_recon_graph, menpmn, mdenpmn, data, mpr_count, best_roots = RG.reconcile(
+                filename, D, T, L)
 
+            # Reformat gene tree and get info on it, as well as for the species tree in the following line
+            postorder_gene_tree, gene_tree_root, gene_node_count = NewDiameter.reformat_tree(gene_tree, "pTop")
+            postorder_species_tree, species_tree_root, species_node_count = NewDiameter.reformat_tree(species_tree,
+                                                                                                      "hTop")
+
+            # Get a list of the mapping nodes in preorder
+            preorder_mapping_node_list = preorderMappingNodeSort(postorder_gene_tree, postorder_species_tree,
+                                                                 dtl_recon_graph.keys())
+
+            # Find the dictionary for frequency scores for the given mapping nodes and graph, as well as the given gene root
+            scoresDict = generateScores(list(reversed(preorder_mapping_node_list)), dtl_recon_graph, gene_tree_root)
+            median_reconciliation, n_meds, _ = findMedian(dtl_recon_graph, scoresDict[0], preorder_mapping_node_list,
+                                                          best_roots)
+
+            # Clean up the reconciliation graph
+            NewDiameter.clean_graph(dtl_recon_graph, gene_tree_root)
+
+            # Use the diameter algorithm to find the diameter between the recon graph and its median
+            diameter = NewDiameter.new_diameter_algorithm(postorder_species_tree, postorder_gene_tree, gene_tree_root,
+                                                          median_reconciliation, dtl_recon_graph, False, False)
+            print("Median diameter found: {0}".format(diameter))
+            NewDiameter.write_to_csv(log + "_med.csv", costs, filename, mpr_count, diameter, gene_node_count,
+                                     species_node_count, -1, -1) #TODO: maybe add runtime data?
         except IOError:
-            print('File %s does not exist' % ('TreeLifeData/COG' + filenum + '.newick'))
+            print('File %s does not exist' % filename)
+        except KeyboardInterrupt:
+            raise
+        except:
+            print('File {0} failed!'.format(filename))
+            print traceback.print_exc(sys.exc_traceback)
 
 
 # See how the mean number of event nodes per mapping node is distributed
