@@ -298,9 +298,9 @@ def calculate_score_double_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_re
                 # If the score of this iteration's double exit is better than the old one, then the old one will
                 # supersede this one
                 score_double_exit = max(score_double_exit,
-                                        enter_table[child1][uB][uE] + enter_table[child2][uC][uF] \
-                                        + (cost(e1, zero_loss) + cost(e2, zero_loss) if e1 != e2
-                                           else intersect_cost(0)))
+                                        enter_table[child1][uB][uE] + enter_table[child2][uC][uF] +
+                                        (cost(e1, zero_loss) + cost(e2, zero_loss) if e1 != e2
+                                         else intersect_cost(0)))
 
     return score_double_exit
 
@@ -397,7 +397,7 @@ def calculate_ancestral_enter_score(zero_loss, is_swapped, enter_table, u, uA, u
             scores += [single_exit_table[u][uA][(u, b_child)] + cost(event, zero_loss)]
 
         # Initialize the ancestor's (uA) entry in single_exit_table, if need be.
-        if not uA in single_exit_table[u]:
+        if uA not in single_exit_table[u]:
             single_exit_table[u][uA] = {}
         single_exit_table[u][uA][uB] = max(scores)
 
@@ -416,7 +416,7 @@ def calculate_ancestral_enter_score(zero_loss, is_swapped, enter_table, u, uA, u
             scores += [single_exit_table[u][uB][(u, a_child)] + cost(event, zero_loss)]
 
         # Initialize the ancestor's (uB) entry in single_exit_table, if need be.
-        if not uB in single_exit_table[u]:
+        if uB not in single_exit_table[u]:
             single_exit_table[u][uB] = {}
         single_exit_table[u][uB][uA] = max(scores)
 
@@ -443,6 +443,7 @@ def new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_gr
     :param zero_loss:           Whether losses should count at all
     :return:                    The diameter of the reconciliation.
     """
+
     postorder_gene_nodes = list(gene_tree.keys())
     postorder_species_nodes = list(species_tree.keys())
     postorder_group_a = {}
@@ -624,7 +625,7 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     start_time = time.clock()
 
     # Get everything we need from DTLReconGraph
-    species_tree, gene_tree, dtl_recon_graph, mpr_count, _ = DTLReconGraph.reconcile(filename, D, T, L)
+    species_tree, gene_tree, dtl_recon_graph, menpmn, mdenpmn, data, mpr_count, _ = DTLReconGraph.reconcile(filename, D, T, L)
 
     # Record the time that this code starts
 
@@ -743,8 +744,10 @@ def main():
     else:
         calculate_diameter_from_file(file, d, t, l, log, debug, verbose)
 
-if __name__ == "__main__":
-    main()
 
 def t(file_name):
     calculate_diameter_from_file(file_name, 2, 3, 1)
+
+
+if __name__ == "__main__":
+    main()

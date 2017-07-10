@@ -24,10 +24,11 @@
 # equal to 2.
 
 # All necessary import statements
+import sys
+from numpy import median as md
+from numpy import mean
 import newickFormatReader
 import Greedy
-import sys
-
 Infinity = float('inf')
 
 
@@ -71,14 +72,14 @@ def postorder(tree, rootEdgeName):
 def DP(hostTree, parasiteTree, phi, D, T, L):
     """ Takes a hostTree, parasiteTree, tip mapping function phi, and duplication cost (D),
         transfer cost (T), and loss cost (L), and returns the DTL reconciliation
-        graph in the form of a dictionary, as well as the total cost of the
+        graph in the form of a dictionary, as well as the average and median numbers of event nodes
+        per mapping nodes in the calculated DTL Recon Graph and the data list used to find them, the total cost of the
         optimal Maximum Parsimony Reconciliation, the number of maximum
         parsimony reconciliations, and the roots for a reconciliation graph that could
         produce a Maximum Parsimony Reconciliation. Note that the DTL reconciliation graph
         is returned as a dictionary with mapping nodes for keys, and values
         corresponding to lists which include all valid event nodes for a given
-        mapping node for the MPR, with minimum cost associated with the mapping node as
-        the last element in the list. """
+        mapping node for the MPR. """
 
     # A, C, O, and bestSwitch are all defined in tech report. Keys are edges and values are as defined in tech report
     A = {}
@@ -348,15 +349,16 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
                     bestSwitchLocations[(vp, hChild2)].extend(
                         oBest[(vp, hChild1)])
 
-    # Append the cost of each event to the corresponding eventsDict entry
-    for key in eventsDict:
-        eventsDict[key].append(minCost[key])
-
     # Create the list of minimum cost mapping nodes involving root of parasite tree
     treeMin = findBestRoots(parasiteTree, minCost)
 
     # Build the reconciliation graph as a dictionary, with keys as mapping nodes and values as event nodes
     DTLReconGraph = buildDTLReconGraph(treeMin, eventsDict, {})
+
+    # meenpmn = 'MEan Event Nodes Per Mapping Node'
+    # mdenpmn = 'MeDian Event Nodes Per Mapping Node'
+    # data is just the list used to find the mean and median above
+    menpmn, mdenpmn, data = calculateMeanMedEventNodesPerMappingNode(DTLReconGraph)
 
     nMPRs = countMPRsWrapper(treeMin, DTLReconGraph)
 
@@ -364,9 +366,37 @@ def DP(hostTree, parasiteTree, phi, D, T, L):
     bestCost = minCost[treeMin[0]]
 
     # Returns the graph, the optimal cost, the number of MPRs, and the roots that could produce an MPR
-    return DTLReconGraph, bestCost, nMPRs, treeMin
+    return DTLReconGraph, menpmn, mdenpmn, data, bestCost, nMPRs, treeMin
 
 
+def calculateMeanMedEventNodesPerMappingNode(DTLReconGraph):
+    """
+    :param DTLReconGraph: a DTL Maximum Parsimony Reconciliation graph, as outputted by DP
+    :return: the mean and median number of event nodes per mapping node in the given reconciliation,
+    as well as just a list of the data points used in calculating the median
+    """
+
+    # Initialize variables to calculate the mean and median and store data
+    sum = 0
+    n_map_nodes = 0
+    data = list()
+
+    # Search through all keys in the dict/graph - i.e., the mapping nodes
+    for map_node in DTLReconGraph:
+        data.append(len(DTLReconGraph[map_node]))
+
+    # Mean Event Nodes Per Mapping Node
+    menpmn = mean(data)
+
+    # MeDian Event Nodes Per Mapping Node
+    mdenpmn = md(data)
+
+    return menpmn, mdenpmn, data
+
+
+# Note that this function was used in an old version of this code, but has since
+# been replaced in favor of a more efficient method of implementing frequency
+# scoring. So it plays no significant part in the algorithm at this time - 7/5/2017
 def preorderDTLsort(DTLReconGraph, ParasiteRoot):
     """
     :param DTLReconGraph: one of the outputs from DP, directly outputted by buildDTLReconGraph (see
@@ -392,9 +422,7 @@ def preorderDTLsort(DTLReconGraph, ParasiteRoot):
     return orderedKeysL
 
 
-# Note that this function was used in an old version of this code, but has since
-# been replaced in favor of a more efficient method of implementing frequency
-# scoring. So it plays no significant part in the algorithm at this time - 7/5/2017
+# As with the function above, this function is no longer used
 def preorderCheck(preOrderList):
     """
     :param preOrderList: output from preorderDTLsort. See that function for the structure
@@ -498,7 +526,7 @@ def countMPRs(mappingNode, DTLReconGraph, memo):
     count = 0
 
     # Loop over all event nodes corresponding to the current mapping node
-    for eventNode in DTLReconGraph[mappingNode][:-1]:
+    for eventNode in DTLReconGraph[mappingNode]:
 
         # Save the children produced by the current event
         mappingChild1 = eventNode[1]
@@ -550,7 +578,7 @@ def buildDTLReconGraph(tupleList, eventDict, uniqueDict):
     for vertexPair in tupleList:
         if vertexPair not in uniqueDict:
             uniqueDict[vertexPair] = eventDict[vertexPair]
-            for event in eventDict[vertexPair][:-1]:
+            for event in eventDict[vertexPair]:
                 for location in event:
                     if type(location) is tuple and location != (None, None):
                         buildDTLReconGraph([location], eventDict, uniqueDict)
@@ -566,15 +594,16 @@ def reconcile(fileName, D, T, L):
     :param D: the cost associated with a duplication event
     :param T: the cost associated with a transfer event
     :param L: the cost associated with a loss event
-    :return: the host tree used, the parasite tree used, the DTLReconGraph, the number of
-    MPRs (as an int), and a list of the roots that could be used to produce an MPR for the given trees.
-    See preceding functions for details on the format of the host and parasite trees as well as
+    :return: the host tree used, the parasite tree used, the DTLReconGraph, the mean and median numbers of event
+    nodes per mapping node for the calculated DTL Maximum Parsimony Reconciliation graph and the data list used to
+    find these values, the number of MPRs (as an int), and a list of the roots that could be used to produce an MPR
+    for the given trees. See preceding functions for details on the format of the host and parasite trees as well as
     the DTLReconGraph
     """
     # Note: I have made modifications to the return statement to make Diameter.py possible without re-reconciling.
     host, paras, phi = newickFormatReader.getInput(fileName)
-    graph, _, numRecon, bestRoots = DP(host, paras, phi, D, T, L)
-    return host, paras, graph, numRecon, bestRoots
+    graph, menpmn, mdenpmn, data, bestCost, numRecon, bestRoots = DP(host, paras, phi, D, T, L)
+    return host, paras, graph, menpmn, mdenpmn, data, numRecon, bestRoots
 
 
 # The remaining code handles the case of the user wanting to run reconcile from the command line
@@ -602,10 +631,7 @@ if __name__ == "__main__":  # Only run if this has been called
             try:
                 result = reconcile(arglst[1], float(arglst[2]), float(arglst[3]), float(arglst[4]))
                 for i in range(len(result)):
-                    if i != 3:
-                        print(str(result[i]) + '\n')
-                    else:
-                        print(str(result[i]))
+                    print(str(result[i]) + '\n')
             except ValueError:
                 print(usage())
             except IOError:
