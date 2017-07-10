@@ -206,20 +206,24 @@ def findMedian(DTLReconGraph, eventScores, postorderMappingNodes, MPRRoots):
     # Loop over all mapping nodes for the gene tree
     for map_node in postorderMappingNodes:
 
-        # Get the events for the current mapping node and their frequencies, in a tuple in that order
-        events = [(event, eventScores[event]) for event in DTLReconGraph[map_node]]
+        # Contemporaneous events need to be caught from the get-go
+        if DTLReconGraph[map_node] == [('C', (None, None), (None, None))]:
+            sum_freqs[map_node] = (('C', (None, None), (None, None)), 0.5)  # C events have freq 1, so 1 - 0.5 = 0.5
+            continue
+
+        # Get the events for the current mapping node and their running frequency sums, in a list
+        events = list()
+        for event in DTLReconGraph[map_node]:
+            if event[0] == 'L':  # Losses produce only one child, so we only need to look to one lower mapping node
+                events.append((event, sum_freqs[event[1]][1] + eventScores[event] - 0.5))
+            else:  # Only other options are T, S, and D, which produce two children
+                events.append((event, sum_freqs[event[1]][1] + sum_freqs[event[2]][1] + eventScores[event] - 0.5))
 
         # Easily find the event with the best frequency
         best_event = max(events, key=itemgetter(1))
 
-        # Consider the children - and thus future event nodes - of the event
-        if best_event[0][0] == 'C':  # Check for a contemporaneous event
-            sum_freqs[map_node] = (best_event[0], 0.5)  # C events have freq 1, so 1 - 0.5 = 0.5
-        elif best_event[0][0] == 'L':  # Losses are also special since they produce only 1 child
-            sum_freqs[map_node] = (best_event[0], best_event[1] - 0.5 + sum_freqs[best_event[0][1]][1])
-        else:  # The only other cases to consider are speciation, duplication, or transfer, which have 2 children
-            sum_freqs[map_node] = (best_event[0], best_event[1] - 0.5 + sum_freqs[best_event[0][1]][1] +
-                                   sum_freqs[best_event[0][2]][1])
+        # Save the result for this mapping node so it can be used in higher mapping nodes in the graph
+        sum_freqs[map_node] = best_event
 
     # Get all possible roots of the graph, and their running frequency scores, in a list, for later use
     possible_root_combos = [(root, sum_freqs[root][1]) for root in MPRRoots]
@@ -235,7 +239,6 @@ def findMedian(DTLReconGraph, eventScores, postorderMappingNodes, MPRRoots):
             n_med_recons += 1
 
     # Now extract the actual root
-    # Note we convert it to a list so we can use it as input for buildDTLReconGraph from the file of the same name
     med_root = best_root[0]
 
     # Adjust the sum_freqs dictionary so we can use it with the buildMedianReconGraph function
@@ -326,7 +329,7 @@ def t(filename='le1', D=2, T=3, L=1):
     NewDiameter.clean_graph(dtl_recon_graph, gene_tree_root)
 
     # Use the diameter algorithm to find the diameter between the recon graph and its median
-    diameter = NewDiameter.new_diameter_algorithm(postorder_species_tree, postorder_gene_tree, gene_tree_root, median_reconciliation, dtl_recon_graph, True, False)
+    diameter = NewDiameter.new_diameter_algorithm(postorder_species_tree, postorder_gene_tree, gene_tree_root, median_reconciliation, dtl_recon_graph, False, False)
 
     # Since this function contains a TON of information in its variables, any value can be changed to be the return
     # value to allow the user to get pretty much any info they need
