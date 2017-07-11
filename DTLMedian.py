@@ -33,6 +33,7 @@ import DTLReconGraph as RG
 import NewDiameter
 import sys
 import traceback
+import time
 
 def preorderMappingNodeSort(preorderGeneNodeList, preorderSpeciesList, mappingNodeList):
     """Sorts a list of mapping nodes into double preorder (the gene node is more significant than the species node, and)
@@ -308,7 +309,7 @@ def buildMedianReconGraph(eventDict, root):
     return subgraph_recon_dict
 
 
-def find_median(filename='le1', D=2, T=3, L=1):
+def find_median_recon(filename='le1', D=2, T=3, L=1):
 
     species_tree, gene_tree, dtl_recon_graph, menpmn, mdenpmn, data, mpr_count, best_roots = RG.reconcile(
         filename, D, T, L)
@@ -332,9 +333,12 @@ def find_median(filename='le1', D=2, T=3, L=1):
 
 def calc_med_diameter(filename='TreeLifeData/COG0195.newick', log=None, D=2, T=3, L=1):
 
+    start_time = time.clock()
     species_tree, gene_tree, dtl_recon_graph, menpmn, mdenpmn, data, mpr_count, best_roots = RG.reconcile(
         filename, D, T, L)
+    dtl_recon_graph_time = time.clock()-start_time
 
+    start_time = time.clock()
     # Reformat gene tree and get info on it, as well as for the species tree in the following line
     postorder_gene_tree, gene_tree_root, gene_node_count = NewDiameter.reformat_tree(gene_tree, "pTop")
     postorder_species_tree, species_tree_root, species_node_count = NewDiameter.reformat_tree(species_tree,
@@ -349,17 +353,21 @@ def calc_med_diameter(filename='TreeLifeData/COG0195.newick', log=None, D=2, T=3
     median_reconciliation, n_meds, _ = findMedian(dtl_recon_graph, scoresDict[0], preorder_mapping_node_list,
                                                   best_roots)
 
+    median_time = time.clock() - start_time
+    start_time = time.clock()
+
     # Clean up the reconciliation graph
     NewDiameter.clean_graph(dtl_recon_graph, gene_tree_root)
 
     # Use the diameter algorithm to find the diameter between the recon graph and its median
     diameter = NewDiameter.new_diameter_algorithm(postorder_species_tree, postorder_gene_tree, gene_tree_root,
-                                                  dtl_recon_graph, median_reconciliation, False, False)
+                                                  median_reconciliation, dtl_recon_graph, False, False)
     print("Median diameter found: {0}".format(diameter))
+    diameter_time = time.clock()-start_time
     if log is not None:
         costs = "D:{0} T:{1} L:{2}".format(D, T, L)
-        NewDiameter.write_to_csv(log + "_med.csv", costs, filename, mpr_count, diameter, gene_node_count,
-                             species_node_count, -1, -1)  # TODO: maybe add runtime data?
+        NewDiameter.write_to_csv(log + "_med.csv", costs, filename, mpr_count, gene_node_count, species_node_count,
+                                 dtl_recon_graph_time, [("Selected Median Diameter", diameter, diameter_time)])
 
 
 def rep_calc_med_diameter(min=1, max=5666, log="COG_Median_2", D=2, T=3, L=1):
