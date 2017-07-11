@@ -11,11 +11,35 @@ import optparse
 
 def displayListValues(list, name):
     print name + ": "
-    print "\tMin:\t{0}".format(min(list))
-    print "\tMax:\t{0}".format(max(list))
-    print "\tMedian:\t{0}".format(numpy.median(list))
-    print "\tMean:\t{0}".format(numpy.mean(list))
-    print ""
+    if not isinstance(list[0],(int, float)):
+        print "(Not Number)"
+    else:
+        print "\tMin:\t{0}".format(min(list))
+        print "\tMax:\t{0}".format(max(list))
+        print "\tMedian:\t{0}".format(numpy.median(list))
+        print "\tMean:\t{0}".format(numpy.mean(list))
+        print ""
+
+def read_file(csv_file):
+
+    properties = {}
+    column = {}
+
+    with open(csv_file) as file:
+        reader = csv.reader(file)
+        header = reader.next()
+
+        # Get the index of each property to allow us to search that row.
+        for i, element in enumerate(header):
+            properties[element] = []
+            column[i] = element
+
+        for row in reader:
+            for i, property in enumerate(row):
+                properties[column[i]] += [property]
+    length = len(properties[column[0]])
+    return properties, length
+
 
 
 def make_plot(file, zero_loss, non_normalized, timings, gene_count_list, diameter_list, diameter_over_gene_list, mpr_list, DP_timings,
@@ -124,8 +148,7 @@ def make_plot(file, zero_loss, non_normalized, timings, gene_count_list, diamete
         total_time.set_yscale('log')
         total_time.set_xscale('log')
 
-
-def findExtrema(csv_file, zero_loss, non_normalized, timings, plot, latex):
+def findExtrema(csv_file, properties, non_normalized, timings, plot, latex):
     """Finds the minimums, maximums, medians, and means of the:
         MPR Count
         Diameter
@@ -142,92 +165,69 @@ def findExtrema(csv_file, zero_loss, non_normalized, timings, plot, latex):
             plt.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
 
     mpr_list = []
-    diameter_list = []
-    gene_count_list = []
-    mpr_over_d_list = []
-    diameter_over_gene_list = []
-    mpr_over_normalized_d_list = []
-    diameter_timings = []
     DP_timings = []
-    total_timings = []
     number_list = []
     number = 0
     DTL = "n/a"
 
-    with open(csv_file) as file:
-        reader = csv.reader(file)
-        for row in reader:
-            if len(row) > 0 and row[0] != "File Name" and row[3] != "0":
-                number += 1
-                number_list += [number]
-                DTL = row[1]
-                mpr = float(row[2])
-                diameter = int(row[3])
-                gene_count = int(row[4])
-                gene_count = int(row[5]) #TODO reverse this
-                DP_timings += [float(row[6])]
-                diameter_timings += [float(row[7])]
-                total_timings += [DP_timings[-1] + diameter_timings[-1]]
-                mpr_list += [mpr]
-                diameter_list += [diameter]
-                gene_count_list += [gene_count]
-                #mpr_over_d_list += [mpr/float(diameter)]
-                diameter_over_gene_list += [diameter/float(gene_count)]
-                #mpr_over_normalized_d_list += [mpr/(diameter/float(gene_count))]
+    diameter_present = False
+    zero_loss_present = False
 
-        displayListValues(mpr_list, "MPR Count")
-        displayListValues(diameter_list, "Diameter")
-        displayListValues(gene_count_list, "Gene Tree Size")
-        #displayListValues(mpr_over_d_list, "MPR Count/Diameter")
-        displayListValues(diameter_over_gene_list, "Normalized Diameter")
-        #displayListValues(mpr_over_normalized_d_list, "MPR Count/(Diameter/Gene Count)")
-        displayListValues(diameter_timings, "Diameter Running Time (seconds)")
+    file_props, length = read_file(csv_file)
+    DTL = file_props["Costs"][0]
+    mpr_list = file_props["MPR Count"]
+    mpr_list = map(lambda e: float(e), mpr_list)
+    gene_count_list = file_props["Gene Node Count"]
+    gene_count_list= map(lambda e: float(e), gene_count_list)
+    species_count_list = file_props["Species Node Count"]
+    species_count_list = map(lambda e: float(e), species_count_list)
+    DP_timings = file_props["DTLReconGraph Computation Time"]
+    DP_timings = map(lambda e: float(e), DP_timings)
+    prop_list_dict = {}
+    timing_list_dict = {}
+
+    for property in properties:
+        prop_list_dict[property] = file_props[property]
+        if "Diameter" in property:
+            prop_list_dict[property] = map(lambda e: float(e), prop_list_dict[property])
+            timing_list_dict[property + " Computation Time"] = file_props[property + " Computation Time"]
+
+    total_timings = DP_timings[:]
+
+    for timing_list in timing_list_dict:
+        timing_list_dict[timing_list] = map(lambda e: float(e), timing_list_dict[timing_list])
+        cur_list = timing_list_dict[timing_list]
+        for i, time in enumerate(cur_list):
+            total_timings[i] += time
+
+
+    displayListValues(mpr_list, "MPR Count")
+    displayListValues(gene_count_list, "Gene Tree Size")
+    displayListValues(gene_count_list, "Species Tree Size")
+    #displayListValues(mpr_over_d_list, "MPR Count/Diameter")
+    #displayListValues(mpr_over_normalized_d_list, "MPR Count/(Diameter/Gene Count)")
+    if timings:
         displayListValues(DP_timings, "Reconciliation Running Time (seconds)")
         displayListValues(total_timings, "Total Running Time (seconds)")
+
+    for property_list in prop_list_dict:
+        displayListValues(prop_list_dict[property_list], property_list)
+
+
 
     filepath, extension = os.path.splitext(csv_file)
     zero_loss_file = filepath + "_zl" + extension
     if plot:
-        make_plot(csv_file, False, non_normalized, timings, gene_count_list, diameter_list, diameter_over_gene_list,
-             mpr_list, DP_timings,
-             diameter_timings, total_timings)
-    if zero_loss:
-        mpr_list = []
-        diameter_list = []
-        gene_count_list = []
-        mpr_over_d_list = []
-        diameter_over_gene_list = []
-        mpr_over_normalized_d_list = []
-        diameter_timings = []
-        DP_timings = []
-        total_timings = []
-        number_list = []
-        number = 0
-        DTL = "n/a"
-        with open(zero_loss_file) as file:
-            reader = csv.reader(file)
-            for row in reader:
-                if len(row) > 0 and row[0] != "File Name" and row[3] != "0":
-                    number += 1
-                    number_list += [number]
-                    DTL = row[1]
-                    mpr = float(row[2])
-                    diameter = int(row[3])
-                    gene_count = int(row[4])
-                    species_count = int(row[5])
-                    DP_timings += [float(row[6])]
-                    diameter_timings += [float(row[7])]
-                    total_timings += [DP_timings[-1] + diameter_timings[-1]]
-                    mpr_list += [mpr]
-                    diameter_list += [diameter]
-                    gene_count_list += [gene_count]
-                    # mpr_over_d_list += [mpr/float(diameter)]
-                    diameter_over_gene_list += [diameter / float(gene_count)]
-                    # mpr_over_normalized_d_list += [mpr/(diameter/float(gene_count))]
-        if plot:
-            make_plot(csv_file, True, non_normalized, timings, gene_count_list, diameter_list, diameter_over_gene_list,
-                 mpr_list, DP_timings,
-                 diameter_timings, total_timings)
+        if "Diameter" in prop_list_dict:
+
+            normalized = map(lambda i: prop_list_dict["Diameter"][i[0]] / gene_count_list[i[0]], enumerate(prop_list_dict["Diameter"]))
+            make_plot(csv_file, False, non_normalized, timings, gene_count_list, prop_list_dict["Diameter"], normalized,
+             mpr_list, DP_timings, timing_list_dict["Diameter Computation Time"], total_timings)
+        if "Zero Loss Diameter" in prop_list_dict:
+            normalized = map(lambda i: prop_list_dict["Zero Loss Diameter"][i[0]] / gene_count_list[i[0]],
+                             enumerate(prop_list_dict["Zero Loss Diameter"]))
+            make_plot(csv_file, True, non_normalized, timings, gene_count_list, prop_list_dict["Zero Loss Diameter"], normalized,
+             mpr_list, DP_timings, timing_list_dict["Zero Loss Diameter Computation Time"], total_timings)
 
 
 def findSpecific(col, value, csv_file="COG_Pilot_Log_02.csv", tol=0):
@@ -402,7 +402,7 @@ def main():
     if not os.path.isfile(file):
         p.error("File not found, '{0}'. Please be sure you typed the name correctly!".format(file))
     else:
-        findExtrema(file, zero_loss, non_normalized, timings, plot, latex)
+        findExtrema(file, ["Diameter", "Zero Loss Diameter"] if zero_loss else ["Diameter"], non_normalized, timings, plot, latex)
         if compare_file is not None:
             compare_logs(file, compare_file)
         if check is not None:
