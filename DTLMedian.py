@@ -28,11 +28,11 @@
 
 from operator import itemgetter
 import pandas as pd
-import matplotlib.pyplot as plt
 import DTLReconGraph as RG
 import NewDiameter
 import sys
 import traceback
+
 
 def preorderMappingNodeSort(preorderGeneNodeList, preorderSpeciesList, mappingNodeList):
     """Sorts a list of mapping nodes into double preorder (the gene node is more significant than the species node, and)
@@ -178,6 +178,7 @@ def calculateScoresForChildren(mappingNode, DTLReconGraph, scoredGraph, scores, 
         scores[mappingChild1] += scoredGraph[eventNode]
         scores[mappingChild2] += scoredGraph[eventNode]
 
+
 def findMedian(DTLReconGraph, eventScores, postorderMappingNodes, MPRRoots):
     """
     :param DTLReconGraph: A dictionary representing a DTL Recon Graph.
@@ -197,7 +198,8 @@ def findMedian(DTLReconGraph, eventScores, postorderMappingNodes, MPRRoots):
 
     # Initialize a dict that will store the running total frequency sum incurred up to the given mapping node,
     # and the event node that directly gave it that frequency sum. Keys are mapping nodes, values are tuples
-    # consisting of an event node and the corresponding running total frequency sum up to that mapping node
+    # consisting of a list of event nodes that maximize the frequency - 0.5 sum score for the lower level,
+    # and the corresponding running total frequency - 0.5 sum up to that mapping node
     sum_freqs = dict()
 
     # Initialize the variable to store the number of median reconciliations
@@ -208,7 +210,7 @@ def findMedian(DTLReconGraph, eventScores, postorderMappingNodes, MPRRoots):
 
         # Contemporaneous events need to be caught from the get-go
         if DTLReconGraph[map_node] == [('C', (None, None), (None, None))]:
-            sum_freqs[map_node] = (('C', (None, None), (None, None)), 0.5)  # C events have freq 1, so 1 - 0.5 = 0.5
+            sum_freqs[map_node] = ([('C', (None, None), (None, None))], 0.5)  # C events have freq 1, so 1 - 0.5 = 0.5
             continue
 
         # Get the events for the current mapping node and their running frequency sums, in a list
@@ -219,40 +221,65 @@ def findMedian(DTLReconGraph, eventScores, postorderMappingNodes, MPRRoots):
             else:  # Only other options are T, S, and D, which produce two children
                 events.append((event, sum_freqs[event[1]][1] + sum_freqs[event[2]][1] + eventScores[event] - 0.5))
 
-        # Easily find the event with the best frequency
-        best_event = max(events, key=itemgetter(1))
+        # Find and save the max frequency - 0.5 sum
+        max_sum = max(events, key=itemgetter(1))[1]
+
+        # Initialize list to find all events that gives the current mapping node the best freq - 0.5 sum
+        best_events = list()
+
+        # Check to see which event(s) produce the max frequency - 0.5 sum
+        for event in events:
+            if event[1] == max_sum:
+                best_events.append(event[0])
+
+        # Help out the garage collector by discarding the now-useless events list
+        del events
 
         # Save the result for this mapping node so it can be used in higher mapping nodes in the graph
-        sum_freqs[map_node] = best_event
+        sum_freqs[map_node] = (best_events[:], max_sum)
 
     # Get all possible roots of the graph, and their running frequency scores, in a list, for later use
     possible_root_combos = [(root, sum_freqs[root][1]) for root in MPRRoots]
 
-    # Find the best root and frequency combo
-    best_root = max(possible_root_combos, key=itemgetter(1))
+    # Find the best frequency - 0.5 sum in the entire graph based at the roots and the corresponding roots
+    best_sum = None
+    best_roots = list()
+    for root_combo in possible_root_combos:
 
-    # Find the number of median reconciliations
-    for root in possible_root_combos:
+        # This case occurs at the very first iteration and sets initial states of variables for comparison
+        if best_sum is None:
+            best_sum = root_combo[1]
+            best_roots.append(root_combo[0])
+            continue
 
-        # best[1] is the best running total frequency found in the roots
-        if root[1] == best_root[1]:
-            n_med_recons += 1
+        # This case requires us add roots to the best roots list
+        if root_combo[1] == best_sum:
+            best_roots.append(root_combo[0])
 
-    # Now extract the actual root
-    med_root = best_root[0]
+        # This case requires we make a new list and best_sum because we've found a better sum
+        elif root_combo[1] > best_sum:
+            best_sum = root_combo[1]
+            best_roots = [root_combo[0]]
 
-    # Adjust the sum_freqs dictionary so we can use it with the buildMedianReconGraph function
-    for root in sum_freqs:
+        # We just ignore the less than case since it's not a better result
+
+    # Adjust the sum_freqs dictionary so we can use it with the buildDTLReconGraph function from DTLReconGraph.py
+    for map_node in sum_freqs:
 
         # We place the event tuples into lists so they work well with the diameter algorithm
-        sum_freqs[root] = [sum_freqs[root][0]]  # Only use the event, no longer the associated frequency sum
+        sum_freqs[map_node] = sum_freqs[map_node][0]  # Only use the event, no longer the associated frequency sum
 
-    med_recon_graph = buildMedianReconGraph(sum_freqs, med_root)
+    # Use the buildDTLReconGraph function from DTLReconGraph.py to find the median recon graph
+    med_recon_graph = RG.buildDTLReconGraph(best_roots, sum_freqs, {})
 
-    # Check to make sure median is a subgraph of the DTL reconciliation
+    # Check to make sure the median is a subgraph of the DTL reconciliation
     assert checkSubgraph(DTLReconGraph, med_recon_graph), 'Median is not a subgraph of the recon graph!'
 
-    return med_recon_graph, n_med_recons, med_root
+    # We can use this function to find the number of medians once we've got the final median recon graph
+    n_med_recons = RG.countMPRsWrapper(best_roots, med_recon_graph)
+
+    # TODO: make sure this function outputs the correct info
+    return med_recon_graph, n_med_recons, best_roots
 
 
 def checkSubgraph(dtlrecon, subrecon):
@@ -363,6 +390,31 @@ def calc_med_diameter(filename='TreeLifeData/COG0195.newick', log=None, D=2, T=3
                              species_node_count, -1, -1)  # TODO: maybe add runtime data?
 
 
+def n_med_test():
+
+    n_meds = list()
+
+    for i in range(1, 5666):
+
+        filenum = str(i).zfill(4)
+        filename = "TreeLifeData/COG{0}.newick".format(filenum)
+
+        print("Calculating {0} now!".format(filename))
+
+        try:
+            n_median_recons = find_median_recon(filename)
+            n_meds.append(n_median_recons)
+        except IOError:
+            print('File %s does not exist' % filename)
+        except KeyboardInterrupt:
+            raise
+        except:
+            print('File {0} failed!'.format(filename))
+            print traceback.print_exc(sys.exc_traceback)
+
+    pd.DataFrame(n_meds, columns=['Number of medians']).to_csv('n_meds_log.csv')
+
+
 def rep_calc_med_diameter(min=1, max=5666, log="COG_Median_2", D=2, T=3, L=1):
     
     # Loop through all the files in TreeLifeData
@@ -382,38 +434,3 @@ def rep_calc_med_diameter(min=1, max=5666, log="COG_Median_2", D=2, T=3, L=1):
         except:
             print('File {0} failed!'.format(filename))
             print traceback.print_exc(sys.exc_traceback)
-
-
-# See how the mean number of event nodes per mapping node is distributed
-def checkDistrOfMean():
-
-    # Initialize our data list
-    data = list()
-
-    # This is just for us to check if there is ever such skew that the median is not 1
-    nmediansnonzero = 0
-
-    # We want to loop through all files
-    for i in range(1, 5666):
-
-        # Start building the number of the tree of life data file
-        filenum = str(i)
-        filenum = ('0' * (4 - len(filenum))) + filenum
-
-        try:
-            datapts, datamean, datamedian = t('TreeLifeData/COG' + filenum + '.newick')
-            if datamedian != 1:
-                nmediansnonzero += 1
-            data.append(datamean)
-        except IOError:
-            print('File %s does not exist' % ('TreeLifeData/COG' + filenum + '.newick'))
-
-    # Save the data to csv in case matplotlib formatting isn't good enough for whatever use necessary
-    pd.DataFrame(data, columns=['menpmn']).to_csv('MeanEventNodesPerMappingNode.csv', index=False)
-
-    print('%d data files had a median that was not 1' % nmediansnonzero)
-    plt.hist(data)
-    plt.title('Distribution of mean event nodes per mapping node')
-    plt.ylabel('Count')
-    plt.xlabel('Mean number of event nodes in a mapping node for a certain data file')
-    plt.show()
