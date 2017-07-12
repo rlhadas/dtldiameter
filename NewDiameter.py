@@ -226,36 +226,36 @@ def calculate_score_both_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_reco
         if uA == uB and ('C', (None, None), (None, None)) in dtl_recon_graph_a[uA]:
             score_both_exit = 0
     else:
-        uA_exit_events = filter(lambda event: isinstance(event, tuple) and event[0] not in ('C', 'L'),
+        uA_exit_events = filter(lambda event: isinstance(event, tuple) and event[0] not in ('A2', 'L'),
                                 dtl_recon_graph_a[uA])
-        uB_exit_events = filter(lambda event: isinstance(event, tuple) and event[0] not in ('C', 'L'),
+        uB_exit_events = filter(lambda event: isinstance(event, tuple) and event[0] not in ('A2', 'L'),
                                 dtl_recon_graph_b[uB])
-        for e1 in uA_exit_events:
-            child1 = e1[1][0]
-            child2 = e1[2][0]
-            # B and C are the species nodes of the two mapping nodes of e1
-            B = e1[1][1]
-            C = e1[2][1]
-            for e2 in uB_exit_events:
-                # E and F are the species nodes of the two mapping nodes of e2
+        for e_a in uA_exit_events:
+            child1 = e_a[1][0]
+            child2 = e_a[2][0]
+            # A1 and A2 are the species nodes of the two mapping nodes of e_a
+            A1 = e_a[1][1]
+            A2 = e_a[2][1]
+            for e_b in uB_exit_events:
+                # B1 and B2 are the species nodes of the two mapping nodes of e_b
                 # We need to account for the case that the children of u are in opposite order between the two events
-                if child1 == e2[1][0]:
-                    E = e2[1][1]
-                    F = e2[2][1]
+                if child1 == e_b[1][0]:
+                    B1 = e_b[1][1]
+                    B2 = e_b[2][1]
                 else:
-                    E = e2[2][1]
-                    F = e2[1][1]
+                    B1 = e_b[2][1]
+                    B2 = e_b[1][1]
                 # Now, we need to turn the species nodes into the correct mapping nodes
-                uB = (child1, B)
-                uE = (child1, E)
-                uC = (child2, C)
-                uF = (child2, F)
+                u1A = (child1, A1)
+                u1B = (child1, B1)
+                u2A = (child2, A2)
+                u2B = (child2, B2)
                 # If the score of this iteration's double exit is better than the old one, then the old one will
                 # supersede this one
 
                 score_both_exit = max(score_both_exit,
-                                        enter_table[child1][uB][uE] + enter_table[child2][uC][uF] +
-                                        (cost(e1, zero_loss) + cost(e2, zero_loss) if e1 != e2
+                                        enter_table[child1][u1A][u1B] + enter_table[child2][u2A][u2B] +
+                                        (cost(e_a, zero_loss) + cost(e_b, zero_loss) if e_a != e_b
                                            else intersect_cost(0)))
 
     return score_both_exit
