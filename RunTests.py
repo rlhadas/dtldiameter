@@ -53,7 +53,8 @@ def write_to_csv(csv_file, costs, filename, mpr_count, gene_node_count, species_
 
 
 
-def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbose=True, zero_loss=False, median=True):
+def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbose=True, zero_loss=False, median=True,
+                                 worst_median=True, best_median=True):
     """This function computes the diameter of space of MPRs in a DTL reconciliation problem,
      as measured by the symmetric set distance between the events of the two reconciliations of the pair
       that has the highest such difference.
@@ -114,7 +115,7 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
         zl_diameter_time_taken = time.clock()-start_time
         results += [("Zero Loss Diameter", zl_diameter, zl_diameter_time_taken)]
 
-
+    median_reconciliation = {}
     if median:
         start_time = time.clock()
         preorder_mapping_node_list = DTLMedian.preorderMappingNodeSort(gene_tree, species_tree, dtl_recon_graph.keys())
@@ -126,6 +127,19 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
                                                       best_roots)
         median_time_taken = time.clock()-start_time
         results += [("Median Count", n_meds, median_time_taken)]
+    if median and worst_median:
+        start_time = time.clock()
+        worst_median_diameter = NewDiameter.new_diameter_algorithm(species_tree, gene_tree, gene_tree_root,
+                                                                   median_reconciliation, dtl_recon_graph, debug, False)
+        worst_median_diameter_time_taken = time.clock()-start_time
+        results += [("Worst Median Diameter", worst_median_diameter, worst_median_diameter_time_taken)]
+    if median and best_median:
+        start_time = time.clock()
+        best_median_diameter = NewDiameter.new_diameter_algorithm(species_tree, gene_tree, gene_tree_root,
+                                                                   median_reconciliation, dtl_recon_graph, debug, True)
+        best_median_diameter_time_taken = time.clock()-start_time
+        results += [("Best Median Diameter", best_median_diameter, best_median_diameter_time_taken)]
+
 
     #if verbose:
      #   print "The diameter of the given reconciliation graph is \033[33m\033[1m{0}\033[0m, (or \033[33m\033[1m{1}\033[0m if losses do not affect the diameter)".format(diameter, zl_diameter)
@@ -146,7 +160,7 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     return
 
 
-def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, debug=False, verbose=True):
+def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, debug=False, verbose=True, loud=False):
     """Iterates over a lot of input files and finds the diameter of all of them.
     :param file_pattern: A string contains the name of the files to be used, with the counting number replaced with #'s
     :param start:       Numbered file to start on
@@ -167,17 +181,19 @@ def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, d
     if fill < len(str(end-1)) or fill < len(str(start)):
         print "Starting or ending number is larger than '{1}' supports ({0})!".format((10 ** fill) -1, file_pattern)
         return
-    print "Running {4} sequential jobs on files '{3}' with DTL of {0},{1},{2}".format(d, t, l, file_pattern, end - start)
+    print "Running {4} sequential jobs on files '{3}' with costs D = {0}, T = {1}, and L = {2}".format(d, t, l, file_pattern, end - start)
     for i in range(start, end):
         cur_file = "{0}{1}{2}".format(match.group(1), str(i).zfill(fill), match.group(3))
         print "Reconciling {0}".format(cur_file)
         try:
-            NewDiameter.calculate_diameter_from_file(cur_file, d, t, l, log, debug, verbose)
+            calculate_diameter_from_file(cur_file, d, t, l, log, debug, verbose)
         except IOError:
             print "(File Not Found)"
         except (KeyboardInterrupt, SystemExit):
             raise  # Don't prevent the user from exiting the program.
         except:
+            if loud:
+                print "\07"
             if verbose:
                 print traceback.print_exc(sys.exc_traceback)
             print "Could not reconcile file '{0}'. Continuing, but please make sure the file was formatted correctly!"\
@@ -197,6 +213,8 @@ def main():
                                                                            "than 30x30")
     p.add_option("-q", "--quiet", dest="verbose", action="store_false", default=True,
                  help="suppresses (most) text output")
+    p.add_option("-L", "--loud", dest="loud", action="store_true", default=False,
+                 help="print the bell character after each failed file")
 
     (options, args) = p.parse_args()
     if len(args) != 4:
@@ -208,18 +226,14 @@ def main():
     log = options.logfile
     debug = options.debug
     verbose = options.verbose
+    loud = options.loud
     if not (log or debug or verbose):
         p.error("some form of output must be specified! (-l or -d must be used when -q is used)")
     elif options.count is not None:
         rep = options.count
-        repeatedly_calculate_diameter(file, rep[0], rep[1], d, t, l, log, debug, verbose)
+        repeatedly_calculate_diameter(file, rep[0], rep[1], d, t, l, log, debug, verbose, loud)
     else:
         calculate_diameter_from_file(file, d, t, l, log, debug, verbose)
-
-
-def t(file_name):
-    calculate_diameter_from_file(file_name, 2, 3, 1)
-
 
 if __name__ == "__main__":
     main()

@@ -522,7 +522,7 @@ def print_table_nicely(table, deliminator, name="\t", dtype="map"):
         if dtype == "event":
             line += "{0}".format(event_to_string(row))
         elif dtype == "literal":
-            line += "{0}".format(column)
+            line += "{0}".format(row)
         else:
             line += "{0}{1}{2}".format(str(row[0]), deliminator, str(row[1]))
         line += "\033[0m\t" + line_color  # Remove bolding for entries, then return to line color

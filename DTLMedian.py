@@ -103,8 +103,11 @@ def generateScores(preorderMappingNodeList, DTLReconGraph, geneRoot):
 
         # If we are at the root of the gene tree, then we need to initialise the score entry
         if mappingNode[0] == geneRoot:
-            scores[mappingNode] = counts[mappingNode] / float(count)
+            scores[mappingNode] = counts[mappingNode]# / float(count)
         calculateScoresForChildren(mappingNode, DTLReconGraph, eventScores, scores, counts)
+
+    for mappingNode in preorderMappingNodeList:
+        scores[mappingNode] = scores[mappingNode] / float(count)
 
     return eventScores, count
 
@@ -395,7 +398,7 @@ def calc_med_diameter(filename='TreeLifeData/COG0195.newick', log=None, D=2, T=3
     if log is not None:
         costs = "D:{0} T:{1} L:{2}".format(D, T, L)
         NewDiameter.write_to_csv(log + "_med.csv", costs, filename, mpr_count, gene_node_count, species_node_count,
-                                 dtl_recon_graph_time, [("Selected Median Diameter", diameter, diameter_time)])
+                                 dtl_recon_graph_time, [("Median Count", n_meds, median_time), ("Selected Median Diameter", diameter, diameter_time)])
 
 
 def n_med_test():
