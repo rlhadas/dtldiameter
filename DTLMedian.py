@@ -30,6 +30,7 @@
 import sys
 import traceback
 import time
+import random
 from operator import itemgetter
 import pandas as pd
 import DTLReconGraph
@@ -321,7 +322,9 @@ def build_median_recon_graph(event_dict, root):
     is starting at
     :return: a DTL Reconciliation Graph in the form returned in DTLReconGraph.py, except here the only
     reconciliation represented is the median - i.e., only events and mapping nodes valid in the median are
-    represented
+    represented. Thus, this function returns the median reconciliation graph. Note, however, that the
+    notation and naming conventions for variables are kept general enough to be applied to other types
+    of reconciliations, if need be.
     """
 
     # Initialize the dict to be returned for this subgraph
@@ -342,6 +345,37 @@ def build_median_recon_graph(event_dict, root):
     return subgraph_recon_dict
 
 
+def choose_random_median(median_recon, map_node):
+    """
+    :param median_recon: the full median reconciliation graph, as returned by compute_median
+    :param map_node: the current mapping node in the median reconciliation that we're trying
+    to find a path from. In the first call, this mapping node will be one of the root mapping
+    nodes for the median reconciliation graph, randomly selected
+    :return: a single-path reconciliation graph that is a sub-graph of the median
+    """
+
+    # Initialize the dictionary that will store the final single-path median that we choose
+    random_submedian = dict()
+
+    # From the get go, we need to save the current subgraph root and its event
+    next_event = random.choice(median_recon[map_node])  # First, get the next event we'll use
+    random_submedian.update({map_node: [next_event]})
+
+    # Check for a loss
+    if next_event[0] == 'L':
+        random_submedian.update(choose_random_median(median_recon, next_event[1]))
+
+    # Check for events that produce two children
+    elif next_event[0] in ['T', 'S', 'D']:
+        random_submedian.update(choose_random_median(median_recon, next_event[1]))
+        random_submedian.update(choose_random_median(median_recon, next_event[2]))
+
+    # Make sure our single path median is indeed a subgraph of the median
+    assert check_subgraph(median_recon, random_submedian), 'Median is not a subgraph of the recon graph!'
+
+    return random_submedian
+
+
 def compute_median_from_file(filename='le1', dup=2, transfer=3, loss=1):
 
     species_tree, gene_tree, dtl_recon_graph, mpr_count, best_roots = DTLReconGraph.reconcile(filename, dup, transfer,
@@ -359,10 +393,14 @@ def compute_median_from_file(filename='le1', dup=2, transfer=3, loss=1):
     # Find the dictionary for frequency scores for the given mapping nodes and graph, as well as the given gene root
     scores_dict = generate_scores(list(reversed(preorder_mapping_node_list)), dtl_recon_graph, gene_tree_root)
 
-    median_reconciliation, n_meds, _ = compute_median(dtl_recon_graph, scores_dict[0], preorder_mapping_node_list,
+    # Now find the median and related info
+    median_reconciliation, n_meds, med_roots = compute_median(dtl_recon_graph, scores_dict[0], preorder_mapping_node_list,
                                                       best_roots)
 
-    return median_reconciliation
+    # In case we may want it, here we calculate a random single-path median from the median
+    random_median = choose_random_median(median_reconciliation, random.choice(med_roots))
+
+    return random_median#median_reconciliation
 
 
 def calc_med_diameter(filename='TreeLifeData/COG0195.newick', log=None, dup=2, transfer=3, loss=1):
