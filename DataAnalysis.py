@@ -80,7 +80,7 @@ def make_plot(file, zero_loss, non_normalized, timings, gene_count_list, diamete
         y_max = max(diameter_list)
         y_min = min(diameter_list)
         padding = (y_max - y_min) * 0.05
-        y_bottom = y_min - padding
+        y_bottom = 0.01 #y_min - padding
         y_top = y_max + padding
 
         fig, ax = plt.subplots(ncols=3, nrows=1)
@@ -97,7 +97,7 @@ def make_plot(file, zero_loss, non_normalized, timings, gene_count_list, diamete
         diameter.set_title("{0} vs. Gene Count".format(diameter_name))
         diameter.grid()
 
-        diameter_hist.hist(diameter_list, orientation='horizontal', bins=numpy.logspace(numpy.log10(y_bottom), 35, 100))
+        diameter_hist.hist(diameter_list, orientation='horizontal', bins=numpy.logspace(0, numpy.log10(y_top), 100))
         # diameter_hist.set_ylabel("Diameter")
         set_label(diameter_hist, "Number of Gene Families", "a", latex)
         diameter_hist.set_title(diameter_name)
@@ -110,7 +110,6 @@ def make_plot(file, zero_loss, non_normalized, timings, gene_count_list, diamete
         mpr_diameter.grid()
         mpr_diameter.set_xscale('log')
         mpr_diameter.set_yscale('log')
-
 
     fig, ax = plt.subplots(ncols=3, nrows=1)
     fig.canvas.set_window_title("{0} Normalized Plots {1}".format(file, name))
@@ -172,15 +171,27 @@ def make_plot(file, zero_loss, non_normalized, timings, gene_count_list, diamete
         total_time.set_yscale('log')
         total_time.set_xscale('log')
 
-def findExtrema(csv_file, properties, non_normalized, timings, plot, latex, strip_mprs, strip_equal):
-    """Finds the minimums, maximums, medians, and means of the:
-        MPR Count
-        Diameter
-        Gene Count
-        MPR Count/Diameter
-        Diameter/Gene Count
-        MPR Count/(Diameter/Gene Count)
-    Of a csv file created by Diameter.py"""
+
+def analyse_data(csv_file, properties, non_normalized, timings, plot, latex, strip_mprs, strip_equal):
+    """
+    This function analyses a provided csv_file of data returned from RunTests.py. The analysis will include a list of
+     the mins, maxes, medians, and modes of several specified properties, and might also include plots.
+    :param csv_file:        The logfile we will be analysing
+    :param properties:      A list containing strings, each one being the name of a column in the csv file that we want
+                             to inspect (or plot). All properties must have associated timing data (named as
+                             '[prop_name] Computation Time'.
+    :param non_normalized:  A boolean value representing whether we also want to include plots that are not normalized
+                             in some way.
+    :param timings:         A boolean value representing whether we also want to include plots of the associated timing
+                             data.
+    :param plot:            A boolean value representing whether we want to include any plots at all.
+    :param latex:           A boolean value representing whether we want to use LaTeX for typsetting (and also include
+                             figure numbers ((a), (b), (c)) under the plots.
+    :param strip_mprs:      A number representing a number of MPRs which is the lower limit of families we will include
+                             in our analysis
+    :param strip_equal:     A boolean value representing whether we want to include families in which every
+                             reconciliation is a median
+    """
 
     if plot:
         plt.rc('text', usetex=latex)
@@ -194,6 +205,14 @@ def findExtrema(csv_file, properties, non_normalized, timings, plot, latex, stri
     zero_loss_present = False
 
     file_props, length, _ = read_file(csv_file, strip_mprs, strip_equal)
+    for prop in properties:
+        assert prop in file_props, "Property '{0}' passed to analyse_data was not found in log file '{1}'!".format(prop, csv_file)
+        assert prop + " Computation Time" in file_props, \
+            "Property '{0}' passed to analyse_data did not have associated " \
+            "timing information in log file '{1}'!".format(prop, csv_file)
+    for prop in ["Costs", "MPR Count", "Gene Node Count", "Species Node Count", "DTLReconGraph Computation Time"]:
+        assert prop in file_props, "Required property '{0}' was not found in log file '{1}'!".format(prop, csv_file)
+
     DTL = file_props["Costs"][0]
     mpr_list = file_props["MPR Count"]
     mpr_list = map(lambda e: float(e), mpr_list)
@@ -244,29 +263,32 @@ def findExtrema(csv_file, properties, non_normalized, timings, plot, latex, stri
 
     filepath, extension = os.path.splitext(csv_file)
     if plot:
+        plot_info_list = []
+
         if "Diameter" in prop_list_dict:
+            plot_info_list += [("Diameter", gene_count_list, "Normalized Diameter", False)]
 
-            normalized = map(lambda i: prop_list_dict["Diameter"][i[0]] / gene_count_list[i[0]], enumerate(prop_list_dict["Diameter"]))
-            make_plot(csv_file, False, non_normalized, timings, gene_count_list, prop_list_dict["Diameter"], "Diameter", normalized,
-            "Normalized Diameter", mpr_list, DP_timings, timing_list_dict["Diameter Computation Time"], total_timings, "Diameter" + name, latex)
         if "Zero Loss Diameter" in prop_list_dict:
-            normalized = map(lambda i: prop_list_dict["Zero Loss Diameter"][i[0]] / gene_count_list[i[0]],
-                             enumerate(prop_list_dict["Zero Loss Diameter"]))
-            make_plot(csv_file, True, non_normalized, timings, gene_count_list, prop_list_dict["Zero Loss Diameter"], "Zero Loss Diameter", normalized,
-             "Normalized Zero Loss Diameter", mpr_list, DP_timings, timing_list_dict["Zero Loss Diameter Computation Time"], total_timings, "Zero Loss Diameter " +name, latex)
-        if "Median Count" in prop_list_dict:
-            normalized = map(lambda i: prop_list_dict["Median Count"][i[0]] / mpr_list[i[0]],
-                             enumerate(prop_list_dict["Median Count"]))
-            make_plot(csv_file, True, non_normalized, timings, gene_count_list, prop_list_dict["Median Count"], "Median Count", normalized,
-            "Normalized Median Count", mpr_list, DP_timings, timing_list_dict["Median Count Computation Time"], total_timings, "Median Count " +name, latex)
-        if "Worst Median Diameter" in prop_list_dict:
-            normalized = map(lambda i: prop_list_dict["Worst Median Diameter"][i[0]] / gene_count_list[i[0]],
-                             enumerate(prop_list_dict["Worst Median Diameter"]))
-            make_plot(csv_file, False, non_normalized, timings, gene_count_list, prop_list_dict["Worst Median Diameter"],
-                      "Worst Median Diameter", normalized,
-                      "Normalized Worst Median Diameter", mpr_list, DP_timings,
-                      timing_list_dict["Worst Median Diameter Computation Time"], total_timings, "Worst Median Diameter " +name, latex)
+            plot_info_list += [("Zero Loss Diameter", gene_count_list, "Normalized Zero Loss Diameter", True)]
 
+        if "Median Count" in prop_list_dict:
+            plot_info_list += [("Median Count", mpr_list, "Normalized Median Count", True)]
+
+        if "Worst Median Diameter" in prop_list_dict:
+            plot_info_list += [("Worst Median Diameter", gene_count_list, "Normalized Worst Median Diameter", False)]
+
+        for prop in plot_info_list:
+            prop_name = prop[0]
+            prop_normalized_against = prop[1]
+            normalized_prop_name = prop[2]
+            zero_loss_limits = prop[3]
+            prop_normalized = map(lambda i: prop_list_dict[prop_name][i[0]] / prop_normalized_against[i[0]],
+                             enumerate(prop_list_dict[prop_name]))
+            make_plot(csv_file, zero_loss_limits, non_normalized, timings, gene_count_list, prop_list_dict[prop_name],
+                  prop_name, prop_normalized,
+                  normalized_prop_name, mpr_list, DP_timings,
+                  timing_list_dict[prop_name +" Computation Time"], total_timings,
+                  prop_name + " " + name, latex)
 
 def find_specific(csv_file="COG_Median_13.csv"):
     file_props, length, column_lookup = read_file(csv_file, False, False)
@@ -371,82 +393,6 @@ def compare_logs(log1="New_COG_01.csv", log2="New_COG_02_zl.csv"):
     print "{0} mismatches, or {0}/{2} = {1}%".format(mismatches,mismatches/(float(count))*100,count)
 
 
-def compare_log_ratios(log1="New_COG_02.csv", log2="COG_Median_med.csv", output_log="Compare.csv"):
-    """"""
-    log1_diams = []
-    log2_diams = []
-    gene_node_count = []
-    mprs = []
-    filenames = []
-    count = 0
-    with open(log1) as file:
-        reader = csv.reader(file)
-        for i, row in enumerate(reader):
-            if i != 0:
-                filenames += [row[0]]
-                log1_diams += [row[3]]
-                gene_node_count += [int(row[4])]
-                mprs += [int(row[2])]
-    with open(log2) as file:
-        reader = csv.reader(file)
-        for i, row in enumerate(reader):
-            if i != 0:
-                log2_diams += [row[3]]
-    ratios = []
-    nonzero_gene = []
-    nonzero_mprs = []
-    with open(output_log, 'w') as file:
-        writer = csv.writer(file)
-        writer.writerow(["Filename","Regular","Median","Ratio"])
-        for i in range(0, len(log1_diams)):
-            if int(log1_diams[i]) * int(log2_diams[i]) is not 0:
-                ratios += [float(log2_diams[i])/float(log1_diams[i])]
-                nonzero_gene += [gene_node_count[i]]
-                nonzero_mprs += [mprs[i]]
-                writer.writerow([filenames[i], log1_diams[i], log2_diams[i], ratios[-1]])
-    displayListValues(ratios, "Ratio (Median Diameter Over Diameter)")
-    size = 4
-    color = 'black'
-
-    gene_xlim = max(nonzero_gene) * 1.05
-
-    name = ""
-    fig, ax = plt.subplots(ncols=3, nrows=1)
-    fig.canvas.set_window_title("Ratios")
-    norm_diameter_hist = ax[0]
-    norm_mpr_diameter = ax[2]
-    norm_diameter = ax[1]
-    ax[0].set_ylabel("Ratio (Median Diameter Over Diameter)")
-
-    ratio_ylim_b = 0.5
-    ratio_ylim_t = 1
-
-    norm_diameter.scatter(nonzero_gene, ratios, c=color, s=size)
-    norm_diameter.set_xlabel("Gene Tree Size")
-    norm_diameter.set_xlim(0, gene_xlim)
-    # norm_diameter.set_ylabel("Diameter (normalized to gene node count)")
-    norm_diameter.set_ylim(ratio_ylim_b, ratio_ylim_t)
-    norm_diameter.set_title("Ratio vs. Gene Tree Size")
-    norm_diameter.grid()
-
-    norm_diameter_hist.grid()
-    norm_diameter_hist.hist(ratios, 100, orientation='horizontal')
-    # norm_diameter_hist.set_ylabel("Diameter (normalized to gene node count)")
-    norm_diameter_hist.set_xlabel("Number of Gene Families")
-    norm_diameter_hist.set_title("Ratio Count")
-    norm_diameter_hist.set_ylim(ratio_ylim_b, ratio_ylim_t)
-
-    norm_mpr_diameter.scatter(nonzero_mprs, ratios, c=color, s=size)
-    norm_mpr_diameter.set_ylim(ratio_ylim_b, ratio_ylim_t)
-    norm_mpr_diameter.set_xlabel("MPR Count")
-    norm_mpr_diameter.set_title("Ratio vs. MPR Count")
-    norm_mpr_diameter.grid()
-    norm_mpr_diameter.set_xscale('log')
-
-    plt.show()
-
-
-
 def main():
     """Processes command line arguments"""
     usage = "usage: %prog [options] file"
@@ -515,7 +461,7 @@ def main():
     if not os.path.isfile(file):
         p.error("File not found, '{0}'. Please be sure you typed the name correctly!".format(file))
     else:
-        findExtrema(file, plot_types, non_normalized, timings, plot, latex, strip_mprs, strip_equal)
+        analyse_data(file, plot_types, non_normalized, timings, plot, latex, strip_mprs, strip_equal)
         if compare_file is not None:
             compare_logs(file, compare_file)
         if check is not None:
