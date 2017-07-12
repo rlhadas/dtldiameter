@@ -12,8 +12,6 @@ import traceback
 import optparse
 
 
-
-
 def write_to_csv(csv_file, costs, filename, mpr_count, gene_node_count, species_node_count,
                  DTLReconGraph_time_taken, properties):
     """Takes a large amount of information about a diameter solution and appends it as one row to the provided csv file.
@@ -53,7 +51,7 @@ def write_to_csv(csv_file, costs, filename, mpr_count, gene_node_count, species_
 
 
 
-def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbose=True, zero_loss=False, median=True):
+def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbose=True, zero_loss=False, median=True, worst_median=True):
     """This function computes the diameter of space of MPRs in a DTL reconciliation problem,
      as measured by the symmetric set distance between the events of the two reconciliations of the pair
       that has the highest such difference.
@@ -113,19 +111,25 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
         zl_diameter = NewDiameter.new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph, dtl_recon_graph, debug, True)
         zl_diameter_time_taken = time.clock()-start_time
         results += [("Zero Loss Diameter", zl_diameter, zl_diameter_time_taken)]
-
-
+    median_reconciliation = []
     if median:
         start_time = time.clock()
-        preorder_mapping_node_list = DTLMedian.preorderMappingNodeSort(gene_tree, species_tree, dtl_recon_graph.keys())
+        preorder_mapping_node_list = DTLMedian.mapping_node_sort(gene_tree, species_tree, dtl_recon_graph.keys())
 
         # Find the dictionary for frequency scores for the given mapping nodes and graph, as well as the given gene root
-        scoresDict = DTLMedian.generateScores(list(reversed(preorder_mapping_node_list)), dtl_recon_graph, gene_tree_root)
+        scoresDict = DTLMedian.generate_scores(list(reversed(preorder_mapping_node_list)), dtl_recon_graph, gene_tree_root)
 
-        median_reconciliation, n_meds, _ = DTLMedian.findMedian(dtl_recon_graph, scoresDict[0], preorder_mapping_node_list,
-                                                      best_roots)
+        median_reconciliation, n_meds, _ = DTLMedian.compute_median(dtl_recon_graph, scoresDict[0], preorder_mapping_node_list,
+                                                                    best_roots)
         median_time_taken = time.clock()-start_time
         results += [("Median Count", n_meds, median_time_taken)]
+
+    if median and worst_median:
+        start_time = time.clock()
+        worst_median_diameter = NewDiameter.new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, median_reconciliation,
+                                                         dtl_recon_graph, debug, False)
+        worst_median_diameter_time_taken = time.clock() - start_time
+        results += [("Worst Median Diameter", worst_median_diameter, worst_median_diameter_time_taken)]
 
     #if verbose:
      #   print "The diameter of the given reconciliation graph is \033[33m\033[1m{0}\033[0m, (or \033[33m\033[1m{1}\033[0m if losses do not affect the diameter)".format(diameter, zl_diameter)
@@ -172,7 +176,7 @@ def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, d
         cur_file = "{0}{1}{2}".format(match.group(1), str(i).zfill(fill), match.group(3))
         print "Reconciling {0}".format(cur_file)
         try:
-            NewDiameter.calculate_diameter_from_file(cur_file, d, t, l, log, debug, verbose)
+            calculate_diameter_from_file(cur_file, d, t, l, log, debug, verbose)
         except IOError:
             print "(File Not Found)"
         except (KeyboardInterrupt, SystemExit):

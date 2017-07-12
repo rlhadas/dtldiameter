@@ -21,7 +21,8 @@
 
 # Edited by Andrew Ramirez and Eli Zupke in late June 2017 to return the number of MPRs for a given data set
 # with an improved time efficiency relative to previous methods, usually by a factor of greater than or
-# equal to 2.
+# equal to 2. Also, smaller functionality was added in early July, including the ability to calculate the
+# mean and median numbers of event nodes per mapping node.
 
 # All necessary import statements
 import sys
@@ -29,6 +30,8 @@ from numpy import median as md
 from numpy import mean
 import newickFormatReader
 import Greedy
+
+
 Infinity = float('inf')
 
 
@@ -49,7 +52,7 @@ def preorder(tree, root_edge_name):
     else:  # Recursive call
         return [root_edge_name] + \
                preorder(tree, left_child_edge_name) + \
-                preorder(tree, right_child_edge_name)
+               preorder(tree, right_child_edge_name)
 
 
 def postorder(tree, root_edge_name):
@@ -69,17 +72,24 @@ def postorder(tree, root_edge_name):
                [root_edge_name]
 
 
-def DP(host_tree, parasite_tree, phi, D, T, L):
-    """ Takes a host_tree, parasite_tree, tip mapping function phi, and duplication cost (D),
-        transfer cost (T), and loss cost (L), and returns the DTL reconciliation
-        graph in the form of a dictionary, as well as the average and median numbers of event nodes
-        per mapping nodes in the calculated DTL Recon Graph and the data list used to find them, the total cost of the
-        optimal Maximum Parsimony Reconciliation, the number of maximum
-        parsimony reconciliations, and the roots for a reconciliation graph that could
-        produce a Maximum Parsimony Reconciliation. Note that the DTL reconciliation graph
-        is returned as a dictionary with mapping nodes for keys, and values
-        corresponding to lists which include all valid event nodes for a given
-        mapping node for the MPR. """
+def DP(host_tree, parasite_tree, phi, dup_cost, transfer_cost, loss_cost):
+    """
+    :param host_tree: a host tree in newick format
+    :param parasite_tree: a parasite tree in newick format
+    :param phi: an output of the newick formatter that maps tips from the parasite tree to tips of the host tree
+    :param dup_cost: cost of a duplication event
+    :param transfer_cost: cost of a transfer event
+    :param loss_cost: cost of a loss event
+    :return: the DTL reconciliation graph in the form of a dictionary, as well as the average and median
+    numbers of event nodes per mapping nodes in the calculated DTL Recon Graph and the data list used to
+    find them, the total cost of the optimal Maximum Parsimony Reconciliation, the number of maximum parsimony
+    reconciliations, and the roots for a reconciliation graph that could produce a Maximum Parsimony Reconciliation.
+
+    Note that the DTL reconciliation graph
+    is returned as a dictionary with mapping nodes for keys, and values
+    corresponding to lists which include all valid event nodes for a given
+    mapping node for the MPR.
+    """
 
     # A, C, O, and best_switch are all defined in tech report. Keys are edges and values are as defined in tech report
     A = {}
@@ -164,37 +174,37 @@ def DP(host_tree, parasite_tree, phi, D, T, L):
                 if not vp_is_a_tip:
 
                     # Calculate cospeciation cost assuming the cost is 0
-                    CO_ep_eh = min(C[(ep1, eh1)] + C[(ep2, eh2)],
+                    co_ep_eh = min(C[(ep1, eh1)] + C[(ep2, eh2)],
                                  C[(ep1, eh2)] + C[(ep2, eh1)])
                     co_min = []  # List to keep track lowest cost speciation
-                    if CO_ep_eh == C[(ep2, eh1)] + C[(ep1, eh2)]:
+                    if co_ep_eh == C[(ep2, eh1)] + C[(ep1, eh2)]:
                         co_min.append(("S", (p_child2, h_child1),
                                       (p_child1, h_child2)))
-                    if CO_ep_eh == C[(ep1, eh1)] + C[(ep2, eh2)]:
+                    if co_ep_eh == C[(ep1, eh1)] + C[(ep2, eh2)]:
                         co_min.append(("S", (p_child1, h_child1),
                                       (p_child2, h_child2)))
                 else:
-                    CO_ep_eh = Infinity
+                    co_ep_eh = Infinity
                     co_min = [Infinity]
 
                 # Compute L and create event list to add to events_dict
-                loss_ep_eh = L + min(C[(ep, eh1)], C[(ep, eh2)])
+                loss_ep_eh = loss_cost + min(C[(ep, eh1)], C[(ep, eh2)])
                 loss_min = []  # List to keep track of lowest cost loss
 
                 # Check which (or maybe both) option produces the minimum
-                if loss_ep_eh == L + C[(ep, eh1)]:
+                if loss_ep_eh == loss_cost + C[(ep, eh1)]:
                     loss_min.append(("L", (vp, h_child1), (None, None)))
-                if loss_ep_eh == L + C[(ep, eh2)]:
+                if loss_ep_eh == loss_cost + C[(ep, eh2)]:
                     loss_min.append(("L", (vp, h_child2), (None, None)))
 
                 # Determine which event occurs for A[(ep, eh)]
-                A[(ep, eh)] = min(CO_ep_eh, loss_ep_eh)
+                A[(ep, eh)] = min(co_ep_eh, loss_ep_eh)
 
                 # Record event occurring for A[(ep, eh)] (as A_min) by seeing which
                 # event(s) produces least cost
-                if CO_ep_eh < loss_ep_eh:
+                if co_ep_eh < loss_ep_eh:
                     A_min = co_min
-                elif loss_ep_eh < CO_ep_eh:
+                elif loss_ep_eh < co_ep_eh:
                     A_min = loss_min
                 else:
                     A_min = loss_min + co_min
@@ -204,12 +214,12 @@ def DP(host_tree, parasite_tree, phi, D, T, L):
             if not vp_is_a_tip:
 
                 # Calculate the cost of a duplication event
-                DUP_ep_eh = D + C[(ep1, eh)] + C[(ep2, eh)]
+                dup_ep_eh = dup_cost + C[(ep1, eh)] + C[(ep2, eh)]
 
                 # List to keep track of lowest cost duplication event
                 dup_list = ("D", (p_child1, vh), (p_child2, vh))
             else:
-                DUP_ep_eh = Infinity
+                dup_ep_eh = Infinity
                 dup_list = [Infinity]
 
             # Next, Compute T and create event list to add
@@ -218,12 +228,12 @@ def DP(host_tree, parasite_tree, phi, D, T, L):
                 switch_list = []  # List to keep track of lowest cost switch
 
                 # Calculate the cost of a switch/transfer event
-                SWITCH_ep_eh = T + min(C[(ep1, eh)] + best_switch[(ep2, eh)],
-                                     C[(ep2, eh)] + best_switch[(ep1, eh)])
+                switch_ep_eh = transfer_cost + min(C[(ep1, eh)] + best_switch[(ep2, eh)],
+                                                   C[(ep2, eh)] + best_switch[(ep1, eh)])
 
                 # If ep2 switching has the lowest cost or equal to the other
                 if (C[(ep1, eh)] + best_switch[(ep2, eh)]) <= (C[(ep2, eh)] +
-                                                              best_switch[(ep1, eh)]):
+                                                               best_switch[(ep1, eh)]):
 
                     # Search for the optimal switch location by searching through the best switch
                     # locations for the given child and vh pair
@@ -236,7 +246,7 @@ def DP(host_tree, parasite_tree, phi, D, T, L):
                                            current_loc)))
                 # If ep1 switching has the lowest cost or equal to the other
                 elif (C[(ep2, eh)] + best_switch[(ep1, eh)]) <= (C[(ep1, eh)] +
-                                                                best_switch[(ep2, eh)]):
+                                                                 best_switch[(ep2, eh)]):
 
                     # Search for the optimal switch location by searching through the best switch
                     # locations for the given child and vh pair
@@ -250,20 +260,20 @@ def DP(host_tree, parasite_tree, phi, D, T, L):
                                            (p_child1, current_loc)))
             
             else:  # vp is a tip
-                SWITCH_ep_eh = Infinity
+                switch_ep_eh = Infinity
                 switch_list = [Infinity]
 
             # Compute C[(ep, eh)] and add the event or events with that cost
             # to the dictionary events_dict
-            C[(ep, eh)] = min(A[(ep, eh)], DUP_ep_eh, SWITCH_ep_eh)
+            C[(ep, eh)] = min(A[(ep, eh)], dup_ep_eh, switch_ep_eh)
 
             # Add the minimum costs for the current edges to the min_cost dict
             min_cost[(vp, vh)] = C[(ep, eh)]
 
             # Find which events produce the optimal cost for these edges and add to eventDict
-            if C[(ep, eh)] == DUP_ep_eh:
+            if C[(ep, eh)] == dup_ep_eh:
                 events_dict[(vp, vh)].append(dup_list)
-            if C[(ep, eh)] == SWITCH_ep_eh:
+            if C[(ep, eh)] == switch_ep_eh:
                 events_dict[(vp, vh)].extend(switch_list)
             if C[(ep, eh)] == A[(ep, eh)]:
                 events_dict[(vp, vh)].extend(A_min)
@@ -284,19 +294,19 @@ def DP(host_tree, parasite_tree, phi, D, T, L):
                 # Compute O(ep, eh) if vh is not a tip
                 O[(ep, eh)] = min(C[(ep, eh)], O[(ep, eh1)], O[(ep, eh2)])
 
-                # oMin helps us easily find which value (between C, O for child 1, and O for child 2) produces
+                # o_min helps us easily find which value (between C, O for child 1, and O for child 2) produces
                 # O for this edge. Knowing what its indices represent, we search through to see which produce O
-                oMin = [ind for ind, elem in enumerate([C[(ep, eh)], O[(ep, eh1)], O[(ep, eh2)]])
-                        if elem == O[(ep, eh)]]
+                o_min = [ind for ind, elem in enumerate([C[(ep, eh)], O[(ep, eh1)], O[(ep, eh2)]])
+                         if elem == O[(ep, eh)]]
 
                 # Corresponds to C
-                if 0 in oMin:
+                if 0 in o_min:
                     o_best[(vp, vh)].append((vp, vh))
 
                 # Corresponds to the O table for each child
-                if 1 in oMin:
+                if 1 in o_min:
                     o_best[(vp, vh)].extend(o_best[(vp, h_child1)])
-                if 2 in oMin:
+                if 2 in o_min:
                     o_best[(vp, vh)].extend(o_best[(vp, h_child2)])
 
         # Compute best_switch values
@@ -350,135 +360,126 @@ def DP(host_tree, parasite_tree, phi, D, T, L):
                         o_best[(vp, h_child1)])
 
     # Create the list of minimum cost mapping nodes involving root of parasite tree
-    tree_min = findBestRoots(parasite_tree, min_cost)
+    tree_min = find_best_roots(parasite_tree, min_cost)
 
     # Build the reconciliation graph as a dictionary, with keys as mapping nodes and values as event nodes
-    DTL_recon_graph = buildDTLReconGraph(tree_min, events_dict, {})
+    dtl_recon_graph = build_dtl_recon_graph(tree_min, events_dict, {})
 
-    # meenpmn = 'MEan Event Nodes Per Mapping Node'
-    # mdenpmn = 'MeDian Event Nodes Per Mapping Node'
-    # data is just the list used to find the mean and median above
-    menpmn, mdenpmn, data = calculate_mean_med_event_nodes_per_mapping_node(DTL_recon_graph)
-
-    MPR_count = countMPRsWrapper(tree_min, DTL_recon_graph)
+    mpr_count = count_mprs_wrapper(tree_min, dtl_recon_graph)
 
     # The total cost of the best reconciliation
     best_cost = min_cost[tree_min[0]]
 
     # Returns the graph, the optimal cost, the number of MPRs, and the roots that could produce an MPR
-    return DTL_recon_graph, menpmn, mdenpmn, data, best_cost, MPR_count, tree_min
+    return dtl_recon_graph, best_cost, mpr_count, tree_min
 
 
-def calculate_mean_med_event_nodes_per_mapping_node(DTL_recon_graph):
+def calculate_mean_med_event_nodes_per_mapping_node(dtl_recon_graph):
     """
-    :param DTL_recon_graph: a DTL Maximum Parsimony Reconciliation graph, as outputted by DP
+    :param dtl_recon_graph: a DTL Maximum Parsimony Reconciliation graph, as outputted by DP
     :return: the mean and median number of event nodes per mapping node in the given reconciliation,
     as well as just a list of the data points used in calculating the median
     """
 
-    # Initialize variables to calculate the mean and median and store data
-    sum = 0
-    n_map_nodes = 0
+    # Initialize the list that will store the data
     data = list()
 
     # Search through all keys in the dict/graph - i.e., the mapping nodes
-    for map_node in DTL_recon_graph:
-        data.append(len(DTL_recon_graph[map_node]))
+    for map_node in dtl_recon_graph:
+        data.append(len(dtl_recon_graph[map_node]))
 
-    # Mean Event Nodes Per Mapping Node
-    menpmn = mean(data)
+    mean_event_nodes_per_mapping_node = mean(data)
+    median_event_nodes_per_mapping_node = md(data)
 
-    # MeDian Event Nodes Per Mapping Node
-    mdenpmn = md(data)
-
-    return menpmn, mdenpmn, data
+    return mean_event_nodes_per_mapping_node, median_event_nodes_per_mapping_node, data
 
 
 # Note that this function was used in an old version of this code, but has since
 # been replaced in favor of a more efficient method of implementing frequency
 # scoring. So it plays no significant part in the algorithm at this time - 7/5/2017
-def preorder_DTL_sort(DTL_recon_graph, ParasiteRoot):
+def preorder_dtl_sort(dtl_recon_graph, parasite_root):
     """
-    :param DTL_recon_graph: one of the outputs from DP, directly outputted by buildDTLReconGraph (see
+    :param dtl_recon_graph: one of the outputs from DP, directly outputted by buildDTLReconGraph (see
     top of file for structure of the DTLReconGraph)
-    :param ParasiteRoot: The root node of the parasite tree, represented as a string
+    :param parasite_root: The root node of the parasite tree, represented as a string
     :return: an ordered list of tuples, in order of increasing level. Each element is of the form ((P, H), L),
     where P is a parasite node and H is a host node, and the parasite node is mapped onto the host node in
     the first tuple in the overarching tuple. The second element is the level in the tree at which the (P,H)
     tuple occurs. Note level 0 is the root and the highest level represents tips.
     """
 
-    keysL = Greedy.orderDTL(DTL_recon_graph, ParasiteRoot)
-    orderedKeysL = []  # We could marginally improve efficiency here by locking list length, but we don't do that here
-    levelCounter = 0
-    while len(orderedKeysL) < len(keysL):
-        toAdd = []
-        for mapping in keysL:
-            if mapping[-1] == levelCounter:
-                    toAdd += [mapping]
-        orderedKeysL += toAdd
-        levelCounter += 1
+    keys_l = Greedy.orderDTL(dtl_recon_graph, parasite_root)
+    ordered_keys_l = []  # We could marginally improve efficiency here by locking list length, but we don't do that here
+    level_counter = 0
+    while len(ordered_keys_l) < len(keys_l):
+        to_add = []
+        for mapping in keys_l:
+            if mapping[-1] == level_counter:
+                    to_add += [mapping]
+        ordered_keys_l += to_add
+        level_counter += 1
 
-    return orderedKeysL
+    return ordered_keys_l
 
 
 # As with the function above, this function is no longer used
-def preorderCheck(preOrderList):
+def preorder_check(preorder_list):
     """
-    :param preOrderList: output from preorder_DTL_sort. See that function for the structure
+    :param preorder_list: output from preorder_DTL_sort. See that function for the structure
     of the input.
     :return: The same ordered list inputted as preOrderList, except duplicate tuples
     in the list have been removed
     """
 
-    # newList = [(a1, a2), b] where a is the map node and b is the depth level
+    # new_list = [(a1, a2), b] where a is the map node and b is the depth level
     # Filtering for multiple instances of a with different b by keeping biggest
     # b instance. This is safe: ensures that all possible parents of a node will
     # be handled before a node to prevent considering duplicates in the
-    # addScores function. - Note by Andrew Ramirez, July 5 2017: the addScores
+    # addScores function. Correction by Jean Sung, July 2016
+    #
+    # - Note by Andrew Ramirez, July 5 2017: the addScores
     # function, along with frequency scoring in general, has since been removed
-    # from this file and is implemented in a separate file now.
-    # Correction by Jean Sung, July 2016
+    # from this file and that functionality is implemented in a separate file now.
 
-    newList = []
-    preDict = {}
-    for root in preOrderList:
-        if root not in newList:
-            newList.append(root)
-    for x in range(len(newList)):
-        currentRoot = newList[x][0]
-        currentLevel = newList[x][1]
-        if currentRoot in preDict:
-            if preDict[currentRoot][0] > currentLevel:
-                newList[x] = (None, None)
+    new_list = []
+    pre_dict = {}
+    for root in preorder_list:
+        if root not in new_list:
+            new_list.append(root)
+    for x in range(len(new_list)):
+        current_root = new_list[x][0]
+        current_level = new_list[x][1]
+        if current_root in pre_dict:
+            if pre_dict[current_root][0] > current_level:
+                new_list[x] = (None, None)
             else:
-                location = preDict[currentRoot][1]
-                newList[location] = (None, None)
+                location = pre_dict[current_root][1]
+                new_list[location] = (None, None)
         else:
-            preDict[currentRoot] = (currentLevel, x)
+            pre_dict[current_root] = (current_level, x)
 
-    finalList = []
-    for item in newList:
+    final_list = []
+    for item in new_list:
         node = item[0]
         depth = item[1]
-        finalList.append(item)
+        final_list.append(item)
 
         # Check for duplicate instances with smaller depth levels
-        for newItem in finalList:
-            newNode = newItem[0]
-            newDepth = newItem[1]
-            if (node == newNode) and (depth > newDepth):
-                finalList.remove(newItem)
+        for newItem in final_list:
+            new_node = newItem[0]
+            new_depth = newItem[1]
+            if (node == new_node) and (depth > new_depth):
+                final_list.remove(newItem)
                 break
-    return finalList
+    return final_list
 
 
-def countMPRsWrapper(mappingNodeLst, DTLReconGraph):
+def count_mprs_wrapper(mapping_node_list, dtl_recon_graph):
     """
-    :param mappingNodeLst: output from findBestRoots, a list of mapping
+    :param mapping_node_list: output from findBestRoots, a list of mapping
     nodes for the root of the parasite tree that could produce a MPR.
     See findBestRoots for more info on this input.
-    :param DTLReconGraph: the output from buildDTLReconGraph. See that
+    :param dtl_recon_graph: the output from buildDTLReconGraph. See that
     function for more info on this input.
     :return: this function uses the helper function countMPRs to loop over
     all of the minimum cost parasite root mappings and sum their MPR counts
@@ -493,18 +494,18 @@ def countMPRsWrapper(mappingNodeLst, DTLReconGraph):
     count = 0
 
     # Loop over all given minimum cost reconciliation roots
-    for mappingNode in mappingNodeLst:
-        count += countMPRs(mappingNode, DTLReconGraph, memo)
+    for mappingNode in mapping_node_list:
+        count += count_mprs(mappingNode, dtl_recon_graph, memo)
 
     return count
 
 
-def countMPRs(mappingNode, DTLReconGraph, memo):
+def count_mprs(mapping_node, dtl_recon_graph, memo):
     """
-    :param mappingNode: an individual mapping node that maps a node
+    :param mapping_node: an individual mapping node that maps a node
     for the parasite tree onto a node of the host tree, in the format
     (p, h), where p is the parasite node and h is the host node
-    :param DTLReconGraph: a DTLReconGraph, output from buildDTLReconGraph
+    :param dtl_recon_graph: a DTLReconGraph, output from buildDTLReconGraph
     (see that function for more info on the format of this input)
     :param memo: a dictionary representing the running memo that is passed
     down recursive calls of this function. At first it is just an empty
@@ -515,95 +516,94 @@ def countMPRs(mappingNode, DTLReconGraph, memo):
     """
 
     # Search the memo dictionary for previously calculated results
-    if mappingNode in memo:
-        return memo[mappingNode]
+    if mapping_node in memo:
+        return memo[mapping_node]
 
     # Base case, occurs if being called on a child produced by a loss or contemporary evet
-    if mappingNode == (None, None):
+    if mapping_node == (None, None):
         return 1
 
     # Initialize a variable to keep count of the number of MPRs
     count = 0
 
     # Loop over all event nodes corresponding to the current mapping node
-    for eventNode in DTLReconGraph[mappingNode]:
+    for eventNode in dtl_recon_graph[mapping_node]:
 
         # Save the children produced by the current event
-        mappingChild1 = eventNode[1]
-        mappingChild2 = eventNode[2]
+        mapping_child1 = eventNode[1]
+        mapping_child2 = eventNode[2]
 
         # Add the product of the counts of both children (over all children) for this event to get the parent's count
-        count += countMPRs(mappingChild1, DTLReconGraph, memo) * countMPRs(mappingChild2, DTLReconGraph, memo)
+        count += count_mprs(mapping_child1, dtl_recon_graph, memo) * count_mprs(mapping_child2, dtl_recon_graph, memo)
 
     # Save the result in the memo
-    memo[mappingNode] = count
+    memo[mapping_node] = count
 
     return count
 
 
-def findBestRoots(parasiteTree, minCostDict):
+def find_best_roots(parasite_tree, min_cost_dict):
     """
-    :param parasiteTree: parasite tree in the format described at the
+    :param parasite_tree: parasite tree in the format described at the
     top of this file
-    :param minCostDict: a dictionary - keys representing mappings of
+    :param min_cost_dict: a dictionary - keys representing mappings of
     parasite vertices onto host vertices (p, h) and values representing
     the minimum cost for a reconciliation based on that mapping. In DP,
     this dictionary was called minCost
     :return: returns a list of all of the mapping nodes involving the
     parasite root that can produce a MPR
     """
-    treeTops = []
-    for key in minCostDict:
-        if key[0] == parasiteTree['pTop'][1]:
-            treeTops.append(key)
-    treeMin = []
-    min_score = min([minCostDict[root] for root in treeTops])
-    for pair in treeTops:
-        if minCostDict[pair] == min_score:
-            treeMin.append(pair)
-    return treeMin
+    tree_tops = []
+    for key in min_cost_dict:
+        if key[0] == parasite_tree['pTop'][1]:
+            tree_tops.append(key)
+    tree_min = []
+    min_score = min([min_cost_dict[root] for root in tree_tops])
+    for pair in tree_tops:
+        if min_cost_dict[pair] == min_score:
+            tree_min.append(pair)
+    return tree_min
 
 
-def buildDTLReconGraph(tupleList, eventDict, uniqueDict):
+def build_dtl_recon_graph(best_roots, event_dict, unique_dict):
     """
-    :param tupleList: a list of minimum cost reconciliation roots - see findBestRoots
+    :param best_roots: a list of minimum cost reconciliation roots - see findBestRoots
     for more info on the format of this input
-    :param eventDict: a dictionary representing events and the corresponding children
+    :param event_dict: a dictionary representing events and the corresponding children
     for each node - see eventDict in DP for more info on the format of this input
-    :param uniqueDict: a dictionary of unique vertex mappings, which initially
+    :param unique_dict: a dictionary of unique vertex mappings, which initially
     starts empty and gets built up using eventDict and tupleList using recursion
-    :return: the modified uniqueDict for this particular call of the function
+    :return: the modified uniqueDict for this particular call of the function which,
+    after all recursive calls are done, will be the final DTL reconciliation graph
     """
 
-    for vertexPair in tupleList:
-        if vertexPair not in uniqueDict:
-            uniqueDict[vertexPair] = eventDict[vertexPair]
-            for event in eventDict[vertexPair]:
+    for vertexPair in best_roots:
+        if vertexPair not in unique_dict:
+            unique_dict[vertexPair] = event_dict[vertexPair]
+            for event in event_dict[vertexPair]:
                 for location in event:
                     if type(location) is tuple and location != (None, None):
-                        buildDTLReconGraph([location], eventDict, uniqueDict)
-    return uniqueDict
+                        build_dtl_recon_graph([location], event_dict, unique_dict)
+    return unique_dict
 
 
-def reconcile(fileName, D, T, L):
+def reconcile(file_name, dup_cost, transfer_cost, loss_cost):
     """
-    :param fileName: the file in which the desired data set it stored, passed as
+    :param file_name: the file in which the desired data set it stored, passed as
     a string. For Ran Libeskind-Hadas's/Jessica Wu's group, our data files were almost exclusively
     .newick files once we were sure our algorithm worked correctly, which needed to use
     the newick format reader to correctly read in the data.
-    :param D: the cost associated with a duplication event
-    :param T: the cost associated with a transfer event
-    :param L: the cost associated with a loss event
-    :return: the host tree used, the parasite tree used, the DTLReconGraph, the mean and median numbers of event
-    nodes per mapping node for the calculated DTL Maximum Parsimony Reconciliation graph and the data list used to
-    find these values, the number of MPRs (as an int), and a list of the roots that could be used to produce an MPR
-    for the given trees. See preceding functions for details on the format of the host and parasite trees as well as
-    the DTLReconGraph
+    :param dup_cost: the cost associated with a duplication event
+    :param transfer_cost: the cost associated with a transfer event
+    :param loss_cost: the cost associated with a loss event
+    :return: the host tree used, the parasite tree used, the DTLReconGraph, the number of MPRs (as an int), and
+    a list of the roots that could be used to produce an MPR for the given trees. See preceding functions
+    for details on the format of the host and parasite trees as well as the DTLReconGraph
     """
     # Note: I have made modifications to the return statement to make Diameter.py possible without re-reconciling.
-    host, paras, phi = newickFormatReader.getInput(fileName)
-    graph, menpmn, mdenpmn, data, bestCost, numRecon, bestRoots = DP(host, paras, phi, D, T, L)
-    return host, paras, graph, menpmn, mdenpmn, data, numRecon, bestRoots
+    host, paras, phi = newickFormatReader.getInput(file_name)
+    graph, best_cost, num_recon, best_roots = DP(host, paras, phi, dup_cost, transfer_cost, loss_cost)
+    return host, paras, graph, num_recon, best_roots
 
 
 # The remaining code handles the case of the user wanting to run reconcile from the command line
