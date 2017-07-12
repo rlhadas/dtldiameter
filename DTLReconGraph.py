@@ -80,10 +80,9 @@ def DP(host_tree, parasite_tree, phi, dup_cost, transfer_cost, loss_cost):
     :param dup_cost: cost of a duplication event
     :param transfer_cost: cost of a transfer event
     :param loss_cost: cost of a loss event
-    :return: the DTL reconciliation graph in the form of a dictionary, as well as the average and median
-    numbers of event nodes per mapping nodes in the calculated DTL Recon Graph and the data list used to
-    find them, the total cost of the optimal Maximum Parsimony Reconciliation, the number of maximum parsimony
-    reconciliations, and the roots for a reconciliation graph that could produce a Maximum Parsimony Reconciliation.
+    :return: the DTL reconciliation graph in the form of a dictionary, the total cost of the best reconciliation,
+    the number of maximum parsimony reconciliations, and the roots for a reconciliation graph that could produce a
+    Maximum Parsimony Reconciliation.
 
     Note that the DTL reconciliation graph
     is returned as a dictionary with mapping nodes for keys, and values
