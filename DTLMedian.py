@@ -7,13 +7,13 @@
 # -1. DATA STRUCTURE QUICK REFERENCE:
 #
 #
-#   DTL or median Reconciliation graph:
+#   DTL Reconciliation graph:
 #       { mapping_node: [event1, event2, ... eventn, number], ...}
 #   Event:
 #       ('event_type', child_mapping_node1, child_mapping_node2)
 #
-#   Mapping node:
-#       ('gene_node', 'species_node')
+#   Mapping node (case indicates capitalization standards):
+#       ('gene_node', 'SPECIES_NODE')
 #   or in loss or contemporary event nodes:
 #       (None, None)
 #
