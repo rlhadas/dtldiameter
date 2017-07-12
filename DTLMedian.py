@@ -93,14 +93,14 @@ def generate_scores(preorder_mapping_node_list, dtl_recon_graph, gene_root):
     count = 0
 
     # Loop over all given minimum cost reconciliation roots
-    for mappingNode in preorder_mapping_node_list:
-        if mappingNode[0] == gene_root:
-            count += count_mprs(mappingNode, dtl_recon_graph, counts)
+    for mapping_node in preorder_mapping_node_list:
+        if mapping_node[0] == gene_root:
+            count += count_mprs(mapping_node, dtl_recon_graph, counts)
 
     # Initialize the scores dict. This dict contains the frequency score of each
     scores = dict()
-    for mappingNode in preorder_mapping_node_list:
-        scores[mappingNode] = 0.0
+    for mapping_node in preorder_mapping_node_list:
+        scores[mapping_node] = 0.0
 
     # This entry is going to be thrown away, but it seems neater to just let calculateScoresOfChildren
     # add scores to an unused entry than to check to see if they are (None, None) in the first place.
@@ -110,12 +110,15 @@ def generate_scores(preorder_mapping_node_list, dtl_recon_graph, gene_root):
     # keys of a dictionary where the values are the frequency scores of those events.
     event_scores = {}
 
-    for mappingNode in preorder_mapping_node_list:
+    for mapping_node in preorder_mapping_node_list:
 
         # If we are at the root of the gene tree, then we need to initialize the score entry
-        if mappingNode[0] == gene_root:
-            scores[mappingNode] = counts[mappingNode] / float(count)
-        calculate_scores_for_children(mappingNode, dtl_recon_graph, event_scores, scores, counts)
+        if mapping_node[0] == gene_root:
+            scores[mapping_node] = counts[mapping_node]# / float(count) Don't do this, this leads to floating-point errors
+        calculate_scores_for_children(mapping_node, dtl_recon_graph, event_scores, scores, counts)
+
+    for mapping_node in preorder_mapping_node_list:
+        scores[mapping_node] = scores[mapping_node] / float(count)
 
     return event_scores, count
 
