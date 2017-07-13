@@ -137,23 +137,34 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     if median_cluster > 0:
 
         start_time = time.clock()
+
         avg = 0.0
         _, file_log_name = os.path.split(filename)
         file_log_name, _ = os.path.splitext(file_log_name)
         file_log_path = os.path.splitext(log)[0] + "/" + file_log_name + ".csv"
         costs = "D: {0} T: {1} L: {2}".format(D, T, L)
 
+        preorder_mapping_node_list = DTLMedian.mapping_node_sort(gene_tree, species_tree, dtl_recon_graph.keys())
+        scoresDict = DTLMedian.generate_scores(list(reversed(preorder_mapping_node_list)), dtl_recon_graph,
+                                               gene_tree_root)
+        median_recon, n_meds, med_roots = DTLMedian.compute_median(dtl_recon_graph, scoresDict[0], preorder_mapping_node_list,
+                                                           best_roots)
+        med_counts = dict()
+        for root in med_roots:
+            DTLMedian.count_mprs(root, median_reconciliation, med_counts)
+
+
         # Every time this loop repeats, we calculate another random median and find its diameter
         for i in range(0, median_cluster):
+
             start_sub_time = time.clock()
 
-            random_median = {}
-
+            random_median = DTLMedian.choose_random_median_wrapper(median_recon, med_roots, med_counts)
             median_hash = hash(frozenset(random_median.items()))
 
             end_random_time = time.clock() - start_sub_time
             start_sub_time = time.clock()
-
+            
             random_median_diameter = NewDiameter.new_diameter_algorithm(species_tree, gene_tree, gene_tree_root,
                                                                       random_median, dtl_recon_graph, debug, False)
 
@@ -170,7 +181,6 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
         avg /= median_cluster
         random_median_diameter_time_taken = time.clock()-start_time
         results += [("Best Median Diameter", avg, random_median_diameter_time_taken)]
-
 
     if median and worst_median:
         start_time = time.clock()
