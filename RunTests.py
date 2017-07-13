@@ -78,7 +78,7 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     start_time = time.clock()
 
     # Get everything we need from DTLReconGraph
-    edge_species_tree, edge_gene_tree, dtl_recon_graph, menpmn, mdenpmn, data, mpr_count, best_roots = DTLReconGraph.reconcile(filename, D, T, L)
+    edge_species_tree, edge_gene_tree, dtl_recon_graph, mpr_count, best_roots = DTLReconGraph.reconcile(filename, D, T, L)
 
     # Record the time that this code starts
 
@@ -135,10 +135,20 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
         results += [("Worst Median Diameter", worst_median_diameter, worst_median_diameter_time_taken)]
     if median and median_cluster > 0:
         start_time = time.clock()
+
+        preorder_mapping_node_list = DTLMedian.mapping_node_sort(gene_tree, species_tree, dtl_recon_graph.keys())
+        scoresDict = DTLMedian.generate_scores(list(reversed(preorder_mapping_node_list)), dtl_recon_graph,
+                                               gene_tree_root)
+        median_recon, n_meds, med_roots = DTLMedian.compute_median(dtl_recon_graph, scoresDict[0], preorder_mapping_node_list,
+                                                           best_roots)
+        med_counts = dict()
+        for root in med_roots:
+            DTLMedian.count_mprs(root, median_reconciliation, med_counts)
+
         #TODO: put code to get random median
 
         for i in range(0, median_cluster):
-            random_median = []
+            random_median = DTLMedian.choose_random_median_wrapper(median_recon, med_roots, med_counts)
             random_median_diameter = NewDiameter.new_diameter_algorithm(species_tree, gene_tree, gene_tree_root,
                                                                       random_median, dtl_recon_graph, debug, False)
             sub_results = [("Random Median Diameter", random_median_diameter, -1)] #TODO found sub time taken
@@ -150,7 +160,6 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
                              sub_results)
         random_median_diameter_time_taken = time.clock()-start_time
         results += [("Best Median Diameter", avg, best_median_diameter_time_taken)]
-
 
     if median and worst_median:
         start_time = time.clock()
