@@ -151,24 +151,37 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
                                                            best_roots)
         med_counts = dict()
         for root in med_roots:
-            DTLMedian.count_mprs(root, median_reconciliation, med_counts)
+            DTLMedian.count_mprs(root, median_recon, med_counts)
 
+        # Save previously seen median reconciliations
+        old_medians = dict()
 
+        # TODO: parse median_cluster as int from the start
         # Every time this loop repeats, we calculate another random median and find its diameter
-        for i in range(0, median_cluster):
+        for i in range(0, int(median_cluster)):
 
             start_sub_time = time.clock()
 
             random_median = DTLMedian.choose_random_median_wrapper(median_recon, med_roots, med_counts)
-            median_hash = hash(frozenset(random_median.items()))
+            median_hash = hash(str(random_median))
+
+
 
             end_random_time = time.clock() - start_sub_time
             start_sub_time = time.clock()
-            
-            random_median_diameter = NewDiameter.new_diameter_algorithm(species_tree, gene_tree, gene_tree_root,
-                                                                      random_median, dtl_recon_graph, debug, False)
 
-            end_sub_time = time.clock() - start_sub_time
+            random_median_diameter = None  # Initialize this entry for the dict
+
+            if median_hash in old_medians:
+                end_sub_time = 0
+                random_median_diameter = old_medians[median_hash]
+            else:
+                random_median_diameter = NewDiameter.new_diameter_algorithm(species_tree, gene_tree, gene_tree_root,
+                                                                            random_median, dtl_recon_graph, debug, False)
+                old_medians[median_hash] = random_median_diameter
+
+                end_sub_time = time.clock() - start_sub_time
+
             sub_results = [("Random Median", median_hash, end_random_time),
                            ("Random Median Diameter", random_median_diameter, end_sub_time)]
             avg += random_median_diameter
@@ -178,9 +191,9 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
                 write_to_csv(file_log_path , costs, filename, mpr_count, gene_node_count, species_node_count,
                              DTLReconGraph_time_taken, sub_results)
 
-        avg /= median_cluster
+        avg /= int(median_cluster)
         random_median_diameter_time_taken = time.clock()-start_time
-        results += [("Best Median Diameter", avg, random_median_diameter_time_taken)]
+        results += [("Random Median Average", avg, random_median_diameter_time_taken)]
 
     if median and worst_median:
         start_time = time.clock()
