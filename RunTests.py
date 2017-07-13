@@ -182,12 +182,6 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
         random_median_diameter_time_taken = time.clock()-start_time
         results += [("Best Median Diameter", avg, random_median_diameter_time_taken)]
 
-    if median and worst_median:
-        start_time = time.clock()
-        worst_median_diameter = NewDiameter.new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, median_reconciliation,
-                                                         dtl_recon_graph, debug, False)
-        worst_median_diameter_time_taken = time.clock() - start_time
-        results += [("Worst Median Diameter", worst_median_diameter, worst_median_diameter_time_taken)]
 
     #if verbose:
      #   print "The diameter of the given reconciliation graph is \033[33m\033[1m{0}\033[0m, (or \033[33m\033[1m{1}\033[0m if losses do not affect the diameter)".format(diameter, zl_diameter)
@@ -278,7 +272,7 @@ def main():
     debug = options.debug
     verbose = options.verbose
     loud = options.loud
-    cluster = options.cluster
+    cluster = int(options.cluster)
     if not (log or debug or verbose):
         p.error("some form of output must be specified! (-l or -d must be used when -q is used)")
     elif options.count is not None:
