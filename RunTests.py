@@ -141,14 +141,15 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
             random_median = []
             random_median_diameter = NewDiameter.new_diameter_algorithm(species_tree, gene_tree, gene_tree_root,
                                                                       random_median, dtl_recon_graph, debug, False)
-            sub_results = [("Random Median Diameter", random_median_diameter, best_median_diameter_time_taken)]
+            sub_results = [("Random Median Diameter", random_median_diameter, -1)] #TODO found sub time taken
             if log is not None:
                 costs = "D: {0} T: {1} L: {2}".format(D, T, L)
-                write_to_csv(log + "/" + filename +".csv", costs, filename, mpr_count, gene_node_count, species_node_count,
+                # TODO make filename not include folder or extension for here
+                write_to_csv(log + "/" + filename + ".csv", costs, filename, mpr_count, gene_node_count, species_node_count,
                              DTLReconGraph_time_taken,
-                             results)
-            best_median_diameter_time_taken = time.clock()-start_time
-            results += [("Best Median Diameter", random_median_diameter, best_median_diameter_time_taken)]
+                             sub_results)
+        random_median_diameter_time_taken = time.clock()-start_time
+        results += [("Best Median Diameter", avg, best_median_diameter_time_taken)]
 
 
     if median and worst_median:
