@@ -77,12 +77,15 @@ def make_plot(file, zero_loss, non_normalized, timings, gene_count_list, diamete
     gene_xlim = max(gene_count_list) * 1.05
 
     if non_normalized:
+
+        log_y = False
         y_max = max(diameter_list)
         y_min = min(diameter_list)
+        if log_y:
+            log_y_min = numpy.floor(numpy.log10(y_min)) - 1
         padding = (y_max - y_min) * 0.05
-        y_bottom = 0.01 #y_min - padding
+        y_bottom = y_min - padding
         y_top = y_max + padding
-
         fig, ax = plt.subplots(ncols=3, nrows=1)
         fig.canvas.set_window_title("{0} Plots {1}".format(file, name))
 
@@ -90,26 +93,31 @@ def make_plot(file, zero_loss, non_normalized, timings, gene_count_list, diamete
         diameter_hist = ax[0]
         mpr_diameter = ax[2]
         ax[0].set_ylabel(diameter_name)
+
         diameter.scatter(gene_count_list, diameter_list, c=color, s=size)
         set_label(diameter, "Gene Tree Size", "b", latex)
-        diameter.set_yscale('log')
         diameter.set_xlim(0, gene_xlim)
         diameter.set_title("{0} vs. Gene Count".format(diameter_name))
-        diameter.grid()
+        diameter.set_ylim(y_bottom, y_top)
 
-        diameter_hist.hist(diameter_list, orientation='horizontal', bins=numpy.logspace(0, numpy.log10(y_top), 100))
+        bins = 100
+        if log_y:
+            bins = numpy.logspace(log_y_min, numpy.log10(y_top), bins)
+        diameter_hist.hist(diameter_list, orientation='horizontal', bins=bins)
         # diameter_hist.set_ylabel("Diameter")
         set_label(diameter_hist, "Number of Gene Families", "a", latex)
         diameter_hist.set_title(diameter_name)
-        diameter_hist.set_yscale('log')
-        diameter_hist.grid()
 
         mpr_diameter.scatter(mpr_list, diameter_list, c=color, s=size)
         set_label(mpr_diameter, "MPR Count", "c", latex)
         mpr_diameter.set_title("{0} vs. MPR Count".format(diameter_name))
-        mpr_diameter.grid()
         mpr_diameter.set_xscale('log')
-        mpr_diameter.set_yscale('log')
+        mpr_diameter.set_ylim(y_bottom, y_top)
+
+        for a in ax:
+            if log_y:
+                a.set_yscale('log')
+            a.grid()
 
     fig, ax = plt.subplots(ncols=3, nrows=1)
     fig.canvas.set_window_title("{0} Normalized Plots {1}".format(file, name))
@@ -266,29 +274,35 @@ def analyse_data(csv_file, properties, non_normalized, timings, plot, latex, str
         plot_info_list = []
 
         if "Diameter" in prop_list_dict:
-            plot_info_list += [("Diameter", gene_count_list, "Normalized Diameter", False)]
+            data_list = prop_list_dict["Diameter"]
+            plot_info_list += [("Diameter", gene_count_list, "Normalized Diameter", False, data_list)]
 
         if "Zero Loss Diameter" in prop_list_dict:
-            plot_info_list += [("Zero Loss Diameter", gene_count_list, "Normalized Zero Loss Diameter", True)]
+            data_list = prop_list_dict["Zero Loss Diameter"]
+            plot_info_list += [("Zero Loss Diameter", gene_count_list, "Normalized Zero Loss Diameter", True, data_list)]
 
         if "Median Count" in prop_list_dict:
-            plot_info_list += [("Median Count", mpr_list, "Normalized Median Count", True)]
+            data_list = prop_list_dict["Median Count"]
+            plot_info_list += [("Median Count", mpr_list, "Normalized Median Count", True, data_list)]
 
         if "Worst Median Diameter" in prop_list_dict:
-            plot_info_list += [("Worst Median Diameter", gene_count_list, "Normalized Worst Median Diameter", False)]
+            data_list = prop_list_dict["Worst Median Diameter"]
+            plot_info_list += [("Worst Median Diameter", gene_count_list, "Normalized Worst Median Diameter", False, data_list)]
 
         for prop in plot_info_list:
             prop_name = prop[0]
             prop_normalized_against = prop[1]
             normalized_prop_name = prop[2]
             zero_loss_limits = prop[3]
-            prop_normalized = map(lambda i: prop_list_dict[prop_name][i[0]] / prop_normalized_against[i[0]],
-                             enumerate(prop_list_dict[prop_name]))
+            prop_data = prop[4]
+            prop_normalized = map(lambda i: prop_data[i[0]] / prop_normalized_against[i[0]],
+                             enumerate(prop_data))
             make_plot(csv_file, zero_loss_limits, non_normalized, timings, gene_count_list, prop_list_dict[prop_name],
-                  prop_name, prop_normalized,
-                  normalized_prop_name, mpr_list, DP_timings,
-                  timing_list_dict[prop_name +" Computation Time"], total_timings,
-                  prop_name + " " + name, latex)
+                      prop_name, prop_normalized,
+                      normalized_prop_name, mpr_list, DP_timings,
+                      timing_list_dict[prop_name + " Computation Time"], total_timings,
+                      prop_name + " " + name, latex)
+
 
 def find_specific(csv_file="COG_Median_13.csv"):
     file_props, length, column_lookup = read_file(csv_file, False, False)

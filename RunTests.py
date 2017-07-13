@@ -52,7 +52,7 @@ def write_to_csv(csv_file, costs, filename, mpr_count, gene_node_count, species_
 
 
 def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbose=True, zero_loss=False, median=True,
-                                 worst_median=True, best_median=True):
+                                 worst_median=True, median_cluster=0):
 
     """This function computes the diameter of space of MPRs in a DTL reconciliation problem,
      as measured by the symmetric set distance between the events of the two reconciliations of the pair
@@ -133,12 +133,22 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
                                                                    median_reconciliation, dtl_recon_graph, debug, False)
         worst_median_diameter_time_taken = time.clock()-start_time
         results += [("Worst Median Diameter", worst_median_diameter, worst_median_diameter_time_taken)]
-    if median and best_median:
+    if median and median_cluster > 0:
         start_time = time.clock()
-        best_median_diameter = NewDiameter.new_diameter_algorithm(species_tree, gene_tree, gene_tree_root,
-                                                                   median_reconciliation, dtl_recon_graph, debug, True)
-        best_median_diameter_time_taken = time.clock()-start_time
-        results += [("Best Median Diameter", best_median_diameter, best_median_diameter_time_taken)]
+        #TODO: put code to get random median
+
+        for i in range(0, median_cluster):
+            random_median = []
+            random_median_diameter = NewDiameter.new_diameter_algorithm(species_tree, gene_tree, gene_tree_root,
+                                                                      random_median, dtl_recon_graph, debug, False)
+            sub_results = [("Random Median Diameter", random_median_diameter, best_median_diameter_time_taken)]
+            if log is not None:
+                costs = "D: {0} T: {1} L: {2}".format(D, T, L)
+                write_to_csv(log + "/" + filename +".csv", costs, filename, mpr_count, gene_node_count, species_node_count,
+                             DTLReconGraph_time_taken,
+                             results)
+            best_median_diameter_time_taken = time.clock()-start_time
+            results += [("Best Median Diameter", random_median_diameter, best_median_diameter_time_taken)]
 
 
     if median and worst_median:
@@ -205,6 +215,7 @@ def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, d
                 print traceback.print_exc(sys.exc_traceback)
             print "Could not reconcile file '{0}'. Continuing, but please make sure the file was formatted correctly!"\
                 .format(cur_file)
+
 
 
 def main():
