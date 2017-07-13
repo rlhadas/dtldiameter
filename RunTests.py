@@ -78,7 +78,7 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     start_time = time.clock()
 
     # Get everything we need from DTLReconGraph
-    edge_species_tree, edge_gene_tree, dtl_recon_graph, menpmn, mdenpmn, data, mpr_count, best_roots = DTLReconGraph.reconcile(filename, D, T, L)
+    edge_species_tree, edge_gene_tree, dtl_recon_graph, mpr_count, best_roots = DTLReconGraph.reconcile(filename, D, T, L)
 
     # Record the time that this code starts
 
@@ -134,22 +134,41 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
         worst_median_diameter_time_taken = time.clock()-start_time
         results += [("Worst Median Diameter", worst_median_diameter, worst_median_diameter_time_taken)]
     if median and median_cluster > 0:
-        start_time = time.clock()
-        #TODO: put code to get random median
 
+        start_time = time.clock()
+        avg = 0.0
+        _, file_log_name = os.path.split(filename)
+        file_log_name, _ = os.path.splitext(file_log_name)
+        file_log_path = os.path.splitext(log)[0] + "/" + file_log_name + ".csv"
+        costs = "D: {0} T: {1} L: {2}".format(D, T, L)
+
+        # Every time this loop repeats, we calculate another random median and find its diameter
         for i in range(0, median_cluster):
-            random_median = []
+            start_sub_time = time.clock()
+
+            random_median = {}
+
+            median_hash = hash(frozenset(random_median.items()))
+
+            end_random_time = time.clock() - start_sub_time
+            start_sub_time = time.clock()
+
             random_median_diameter = NewDiameter.new_diameter_algorithm(species_tree, gene_tree, gene_tree_root,
                                                                       random_median, dtl_recon_graph, debug, False)
-            sub_results = [("Random Median Diameter", random_median_diameter, -1)] #TODO found sub time taken
+
+            end_sub_time = time.clock() - start_sub_time
+            sub_results = [("Random Median", median_hash, end_random_time),
+                           ("Random Median Diameter", random_median_diameter, end_sub_time)]
+            avg += random_median_diameter
+
             if log is not None:
-                costs = "D: {0} T: {1} L: {2}".format(D, T, L)
                 # TODO make filename not include folder or extension for here
-                write_to_csv(log + "/" + filename + ".csv", costs, filename, mpr_count, gene_node_count, species_node_count,
-                             DTLReconGraph_time_taken,
-                             sub_results)
+                write_to_csv(file_log_path , costs, filename, mpr_count, gene_node_count, species_node_count,
+                             DTLReconGraph_time_taken, sub_results)
+
+        avg /= median_cluster
         random_median_diameter_time_taken = time.clock()-start_time
-        results += [("Best Median Diameter", avg, best_median_diameter_time_taken)]
+        results += [("Best Median Diameter", avg, random_median_diameter_time_taken)]
 
 
     if median and worst_median:
