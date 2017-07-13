@@ -30,8 +30,8 @@
 import sys
 import traceback
 import time
-import random
 from operator import itemgetter
+import numpy as np
 import pandas as pd
 import DTLReconGraph
 import NewDiameter
@@ -114,7 +114,7 @@ def generate_scores(preorder_mapping_node_list, dtl_recon_graph, gene_root):
 
         # If we are at the root of the gene tree, then we need to initialize the score entry
         if mapping_node[0] == gene_root:
-            scores[mapping_node] = counts[mapping_node]# / float(count) Don't do this, this leads to floating-point errors
+            scores[mapping_node] = counts[mapping_node]# / float(count) Don't do this, it leads to floating-point errors
         calculate_scores_for_children(mapping_node, dtl_recon_graph, event_scores, scores, counts)
 
     for mapping_node in preorder_mapping_node_list:
@@ -348,30 +348,61 @@ def build_median_recon_graph(event_dict, root):
     return subgraph_recon_dict
 
 
-def choose_random_median(median_recon, map_node):
+def choose_random_median_wrapper(median_recon, med_roots, count_dict):
+    """
+    :param median_recon: the median reconciliation
+    :param med_roots: the roots (root mapping nodes) for possible median reconciliations
+    :param count_dict: a dictionary detailing how many medians can stem from an individual event
+    node
+    :return: a randomly, uniformly sampled median reconciliation graph
+    """
+
+    # Find the total amount of medians that can stem from the roots
+    total_meds = 0.0
+    for root in med_roots:
+        total_meds += count_dict[root]
+
+    # Create the choice list for the roots we can choose from, weighted to account for median
+    # counts each root can produce
+    # Note that numpy is so basic that we need to do a convoluted workaround to choose tuples from a list
+    final_root = med_roots[np.random.choice(len(med_roots), p=[count_dict[root] / total_meds for root in med_roots])]
+
+    return choose_random_median(median_recon, final_root, count_dict)
+
+
+def choose_random_median(median_recon, map_node, count_dict):
     """
     :param median_recon: the full median reconciliation graph, as returned by compute_median
     :param map_node: the current mapping node in the median reconciliation that we're trying
     to find a path from. In the first call, this mapping node will be one of the root mapping
     nodes for the median reconciliation graph, randomly selected
-    :return: a single-path reconciliation graph that is a sub-graph of the median
+    :param count_dict: a dictionary that tells us how many total medians a given event node can spawn
+    :return: a single-path reconciliation graph that is a sub-graph of the median. It is chosen
+    randomly but randomly in such a way that event node choice will favor event nodes that lead
+    to more MPRs so that the data aren't skewed
     """
 
     # Initialize the dictionary that will store the final single-path median that we choose
     random_submedian = dict()
 
-    # From the get go, we need to save the current subgraph root and its event
-    next_event = random.choice(median_recon[map_node])  # First, get the next event we'll use
+    # Find the total number of medians we can get from the current mapping node
+    total_meds = float(count_dict[map_node])
+
+    # Use a convoluted numpy workaround to select tuples (events) from a list
+    next_event = median_recon[map_node][np.random.choice(len(median_recon[map_node]),
+                                                         p=[count_dict[event] / total_meds for event in
+                                                            median_recon[map_node]])]
+
     random_submedian.update({map_node: [next_event]})
 
     # Check for a loss
     if next_event[0] == 'L':
-        random_submedian.update(choose_random_median(median_recon, next_event[1]))
+        random_submedian.update(choose_random_median(median_recon, next_event[1], count_dict))
 
     # Check for events that produce two children
     elif next_event[0] in ['T', 'S', 'D']:
-        random_submedian.update(choose_random_median(median_recon, next_event[1]))
-        random_submedian.update(choose_random_median(median_recon, next_event[2]))
+        random_submedian.update(choose_random_median(median_recon, next_event[1], count_dict))
+        random_submedian.update(choose_random_median(median_recon, next_event[2], count_dict))
 
     # Make sure our single path median is indeed a subgraph of the median
     assert check_subgraph(median_recon, random_submedian), 'Median is not a subgraph of the recon graph!'
@@ -397,13 +428,20 @@ def compute_median_from_file(filename='le1', dup=2, transfer=3, loss=1):
     scores_dict = generate_scores(list(reversed(preorder_mapping_node_list)), dtl_recon_graph, gene_tree_root)
 
     # Now find the median and related info
-    median_reconciliation, n_meds, med_roots = compute_median(dtl_recon_graph, scores_dict[0], preorder_mapping_node_list,
-                                                      best_roots)
+    median_reconciliation, n_meds, med_roots = compute_median(dtl_recon_graph, scores_dict[0],
+                                                              preorder_mapping_node_list, best_roots)
 
-    # In case we may want it, here we calculate a random single-path median from the median
-    random_median = choose_random_median(median_reconciliation, random.choice(med_roots))
+    # Initialize the dictionary that will tell us how many medians can be spawned from a particular event node
+    med_counts = dict()
 
-    return random_median#median_reconciliation
+    # Now fill it
+    for root in med_roots:
+        count_mprs(root, median_reconciliation, med_counts)
+
+    # In case we may want it, here we calculate a random, uniformly sampled single-path median from the median
+    random_median = choose_random_median_wrapper(median_reconciliation, med_roots, med_counts)
+
+    return median_reconciliation
 
 
 def calc_med_diameter(filename='TreeLifeData/COG0195.newick', log=None, dup=2, transfer=3, loss=1):
