@@ -51,8 +51,8 @@ def write_to_csv(csv_file, costs, filename, mpr_count, gene_node_count, species_
 
 
 
-def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbose=True, zero_loss=False, median=True,
-                                 worst_median=True, median_cluster=0):
+def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbose=True, zero_loss=False, median=False,
+                                 worst_median=False, median_cluster=0):
 
     """This function computes the diameter of space of MPRs in a DTL reconciliation problem,
      as measured by the symmetric set distance between the events of the two reconciliations of the pair
@@ -133,7 +133,8 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
                                                                    median_reconciliation, dtl_recon_graph, debug, False)
         worst_median_diameter_time_taken = time.clock()-start_time
         results += [("Worst Median Diameter", worst_median_diameter, worst_median_diameter_time_taken)]
-    if median and median_cluster > 0:
+
+    if median_cluster > 0:
 
         start_time = time.clock()
         avg = 0.0
@@ -197,7 +198,7 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     return
 
 
-def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, debug=False, verbose=True, loud=False):
+def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, debug=False, verbose=True, loud=False, cluster=0):
     """Iterates over a lot of input files and finds the diameter of all of them.
     :param file_pattern: A string contains the name of the files to be used, with the counting number replaced with #'s
     :param start:       Numbered file to start on
@@ -223,7 +224,7 @@ def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, d
         cur_file = "{0}{1}{2}".format(match.group(1), str(i).zfill(fill), match.group(3))
         print "Reconciling {0}".format(cur_file)
         try:
-            calculate_diameter_from_file(cur_file, d, t, l, log, debug, verbose)
+            calculate_diameter_from_file(cur_file, d, t, l, log, debug, verbose, median_cluster=cluster)
         except IOError:
             print "(File Not Found)"
         except (KeyboardInterrupt, SystemExit):
@@ -251,6 +252,8 @@ def main():
                                                                            "than 30x30")
     p.add_option("-q", "--quiet", dest="verbose", action="store_false", default=True,
                  help="suppresses (most) text output")
+    p.add_option("-c", "--cluster", dest="cluster", action="store", default=0,
+                 help="suppresses (most) text output")
     p.add_option("-L", "--loud", dest="loud", action="store_true", default=False,
                  help="print the bell character after each failed file")
 
@@ -265,13 +268,14 @@ def main():
     debug = options.debug
     verbose = options.verbose
     loud = options.loud
+    cluster = options.cluster
     if not (log or debug or verbose):
         p.error("some form of output must be specified! (-l or -d must be used when -q is used)")
     elif options.count is not None:
         rep = options.count
-        repeatedly_calculate_diameter(file, rep[0], rep[1], d, t, l, log, debug, verbose, loud)
+        repeatedly_calculate_diameter(file, rep[0], rep[1], d, t, l, log, debug, verbose, loud, cluster)
     else:
-        calculate_diameter_from_file(file, d, t, l, log, debug, verbose)
+        calculate_diameter_from_file(file, d, t, l, log, debug, verbose, median_cluster=cluster)
 
 if __name__ == "__main__":
     main()
