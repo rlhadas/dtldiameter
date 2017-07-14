@@ -30,9 +30,9 @@
 import sys
 import traceback
 import time
+import optparse
 from operator import itemgetter
 import numpy as np
-import pandas as pd
 import DTLReconGraph
 import NewDiameter
 import RunTests
@@ -61,11 +61,11 @@ def mapping_node_sort(ordered_gene_node_list, ordered_species_node_list, mapping
     # node will be one level less than the next gene node paired with the first species node.
     gene_multiplier = len(ordered_species_node_list)
 
-    for i, gene_node in enumerate(ordered_gene_node_list):
-        gene_level_lookup[gene_node] = i * gene_multiplier
+    for i1, gene_node in enumerate(ordered_gene_node_list):
+        gene_level_lookup[gene_node] = i1 * gene_multiplier
 
-    for i, species_node in enumerate(ordered_species_node_list):
-        species_level_lookup[species_node] = i
+    for i2, species_node in enumerate(ordered_species_node_list):
+        species_level_lookup[species_node] = i2
 
     # The lambda function looks up the level of both the gene node and the species nodes and adds them together to
     # get a number to give to the sorting algorithm for that mapping node. The gene node is weighted far more heavily
@@ -114,7 +114,7 @@ def generate_scores(preorder_mapping_node_list, dtl_recon_graph, gene_root):
 
         # If we are at the root of the gene tree, then we need to initialize the score entry
         if mapping_node[0] == gene_root:
-            scores[mapping_node] = counts[mapping_node]# / float(count) Don't do this, it leads to floating-point errors
+            scores[mapping_node] = counts[mapping_node]
         calculate_scores_for_children(mapping_node, dtl_recon_graph, event_scores, scores, counts)
 
     for mapping_node in preorder_mapping_node_list:
@@ -178,21 +178,22 @@ def calculate_scores_for_children(mapping_node, dtl_recon_graph, scored_graph, s
     :param counts: The counts generated in countMPRs
     :return: Nothing, but scoredGraph is built up.
     """
-    events = dtl_recon_graph[mapping_node]
 
     assert scores[mapping_node] != 0
+
     # This multiplier is arcane magic that we all immediately forgot how it works, but it gets the job done.
     multiplier = float(scores[mapping_node]) / counts[mapping_node]
-    # Iterate over every event
-    for eventNode in events:
 
-        scored_graph[eventNode] = multiplier * counts[eventNode]
+    # Iterate over every event
+    for event_node in dtl_recon_graph[mapping_node]:
+
+        scored_graph[event_node] = multiplier * counts[event_node]
 
         # Save the children produced by the current event
-        mapping_child1 = eventNode[1]
-        mapping_child2 = eventNode[2]
-        scores[mapping_child1] += scored_graph[eventNode]
-        scores[mapping_child2] += scored_graph[eventNode]
+        mapping_child1 = event_node[1]
+        mapping_child2 = event_node[2]
+        scores[mapping_child1] += scored_graph[event_node]
+        scores[mapping_child2] += scored_graph[event_node]
 
 
 def compute_median(dtl_recon_graph, event_scores, postorder_mapping_nodes, mpr_roots):
@@ -210,7 +211,7 @@ def compute_median(dtl_recon_graph, event_scores, postorder_mapping_nodes, mpr_r
     represent a single reconciliation: the median reconciliation.
     """
 
-    # Note that for symmetric median reconciliation, each frequency must have 0.5 subtracted from it
+    # Note that for a symmetric median reconciliation, each frequency must have 0.5 subtracted from it
 
     # Initialize a dict that will store the running total frequency sum incurred up to the given mapping node,
     # and the event node that directly gave it that frequency sum. Keys are mapping nodes, values are tuples
@@ -224,9 +225,9 @@ def compute_median(dtl_recon_graph, event_scores, postorder_mapping_nodes, mpr_r
         # Contemporaneous events need to be caught from the get-go
         if dtl_recon_graph[map_node] == [('C', (None, None), (None, None))]:
             sum_freqs[map_node] = ([('C', (None, None), (None, None))], 0.5)  # C events have freq 1, so 1 - 0.5 = 0.5
-            continue
+            continue  # Contemporaneous events should be a lone event in a list, so we move to the next mapping node
 
-        # Get the events for the current mapping node and their running frequency sums, in a list
+        # Get the events for the current mapping node and their running (frequency - 0.5) sums, in a list
         events = list()
         for event in dtl_recon_graph[map_node]:
             if event[0] == 'L':  # Losses produce only one child, so we only need to look to one lower mapping node
@@ -234,10 +235,10 @@ def compute_median(dtl_recon_graph, event_scores, postorder_mapping_nodes, mpr_r
             else:  # Only other options are T, S, and D, which produce two children
                 events.append((event, sum_freqs[event[1]][1] + sum_freqs[event[2]][1] + event_scores[event] - 0.5))
 
-        # Find and save the max frequency - 0.5 sum
+        # Find and save the max (frequency - 0.5) sum
         max_sum = max(events, key=itemgetter(1))[1]
 
-        # Initialize list to find all events that gives the current mapping node the best freq - 0.5 sum
+        # Initialize list to find all events that gives the current mapping node the best (freq - 0.5) sum
         best_events = list()
 
         # Check to see which event(s) produce the max (frequency - 0.5) sum
@@ -245,31 +246,31 @@ def compute_median(dtl_recon_graph, event_scores, postorder_mapping_nodes, mpr_r
             if event[1] == max_sum:
                 best_events.append(event[0])
 
-        # Help out the garage collector by discarding the now-useless events list
+        # Help out the garage collector by discarding the now-useless non-optimal events list
         del events
 
         # Save the result for this mapping node so it can be used in higher mapping nodes in the graph
         sum_freqs[map_node] = (best_events[:], max_sum)
 
-    # Get all possible roots of the graph, and their running frequency scores, in a list, for later use
+    # Get all possible roots of the graph and their running frequency scores, in a list, for later use
     possible_root_combos = [(root, sum_freqs[root][1]) for root in mpr_roots]
 
-    # Find the best frequency - 0.5 sum in the entire graph based at the roots and the corresponding roots
+    # Find the best (frequency - 0.5) sum in the entire graph based at the roots and the corresponding roots
     best_sum = None
     best_roots = list()
     for root_combo in possible_root_combos:
 
-        # This case occurs at the very first iteration and sets initial states of variables for comparison
+        # Occurs at the very first iteration and sets initial states of variables for comparison in higher levels
         if best_sum is None:
             best_sum = root_combo[1]
             best_roots.append(root_combo[0])
             continue
 
-        # This case requires us add roots to the best roots list
+        # This case requires us to just add roots to the best roots list
         if root_combo[1] == best_sum:
             best_roots.append(root_combo[0])
 
-        # This case requires we make a new list and best_sum because we've found a better sum
+        # This case requires us to clear the root list and set a new best_sum because we've found a better sum
         elif root_combo[1] > best_sum:
             best_sum = root_combo[1]
             best_roots = [root_combo[0]]
@@ -388,7 +389,8 @@ def choose_random_median(median_recon, map_node, count_dict):
     # Find the total number of medians we can get from the current mapping node
     total_meds = float(count_dict[map_node])
 
-    # Use a convoluted numpy workaround to select tuples (events) from a list
+    # Use a convoluted numpy workaround to select tuples (events) from a list, taking into account
+    # how many medians each event can produce
     next_event = median_recon[map_node][np.random.choice(len(median_recon[map_node]),
                                                          p=[count_dict[event] / total_meds for event in
                                                             median_recon[map_node]])]
@@ -484,31 +486,6 @@ def calc_med_diameter(filename='TreeLifeData/COG0195.newick', log=None, dup=2, t
                                                                                              diameter, diameter_time)])
 
 
-def n_med_test():
-
-    n_meds = list()
-
-    for i in range(1, 5666):
-
-        filenum = str(i).zfill(4)
-        filename = "TreeLifeData/COG{0}.newick".format(filenum)
-
-        print("Calculating {0} now!".format(filename))
-
-        try:
-            n_median_recons = compute_median_from_file(filename)
-            n_meds.append(n_median_recons)
-        except IOError:
-            print('File %s does not exist' % filename)
-        except KeyboardInterrupt:
-            raise
-        except:
-            print('File {0} failed!'.format(filename))
-            print traceback.print_exc(sys.exc_traceback)
-
-    pd.DataFrame(n_meds, columns=['Number of medians']).to_csv('n_meds_log.csv')
-
-
 def rep_calc_med_diameter(minimum=1, maximum=5666, log="COG_Median_2", dup=2, transfer=3, loss=1):
     
     # Loop through all the files in TreeLifeData
@@ -528,3 +505,85 @@ def rep_calc_med_diameter(minimum=1, maximum=5666, log="COG_Median_2", dup=2, tr
         except:
             print('File {0} failed!'.format(filename))
             print traceback.print_exc(sys.exc_traceback)
+
+
+def usage():
+    """
+    :return: the usage statement associated with running this file
+    """
+
+    return ('usage: DTLMedian filename dup_cost transfer_cost loss_cost [-r] [-n]')
+
+
+if __name__ == '__main__':
+
+    p = optparse.OptionParser(usage=usage())
+
+    p.add_option('-r', '--random', dest='random', help='Allows user to add a random median reconciliation to the '
+                 'output', action='store_true', default=False)
+    p.add_option('-c', '--count', dest='count', help='Allows the user to add the number of median reconciliations to'
+                 'the output', action='store_true', default=False)
+
+    options, args = p.parse_args()
+
+    if len(args) == 4:
+        try:
+
+            # These will be the outputs we eventually return
+            output = []
+
+            # Save arg values
+            filename = args[0]
+            dup = float(args[1])
+            transfer = float(args[2])
+            loss = float(args[3])
+
+            # Get basic info just about the dtl recon graph
+            species_tree, gene_tree, dtl_recon_graph, mpr_count, best_roots = DTLReconGraph.reconcile(filename, dup,
+                                                                                                      transfer, loss)
+
+            # Reformat gene tree and get info on it, as well as for the species tree in the following line
+            postorder_gene_tree, gene_tree_root, gene_node_count = NewDiameter.reformat_tree(gene_tree, "pTop")
+            postorder_species_tree, species_tree_root, species_node_count = NewDiameter.reformat_tree(species_tree,
+                                                                                                      "hTop")
+
+            # Get a list of the mapping nodes in preorder
+            preorder_mapping_node_list = mapping_node_sort(postorder_gene_tree, postorder_species_tree,
+                                                           dtl_recon_graph.keys())
+
+            # Find the dictionary for frequency scores for the given mapping nodes and graph, and the given gene root
+            scores_dict = generate_scores(list(reversed(preorder_mapping_node_list)), dtl_recon_graph, gene_tree_root)
+
+            # Now find the median and related info
+            median_reconciliation, n_meds, med_roots = compute_median(dtl_recon_graph, scores_dict[0],
+                                                                      preorder_mapping_node_list, best_roots)
+
+            # We'll always want to output the median
+            output.append(median_reconciliation)
+
+            # Check if the user wants the number of medians
+            if options.count:
+                output.append(n_meds)
+
+            # Check if the user wants a random median
+            if options.random:
+
+                # Initialize the dictionary that tells us how many medians can be spawned from a particular event node
+                med_counts = dict()
+
+                # Now fill it
+                for root in med_roots:
+                    count_mprs(root, median_reconciliation, med_counts)
+
+                # In case we may want it, calculate a random, uniformly sampled single-path median from the median recon
+                random_median = choose_random_median_wrapper(median_reconciliation, med_roots, med_counts)
+                output.append(random_median)
+
+            # Now print all of the output requested by the user
+            for result in output:
+                print(str(result) + '\n')
+
+        except ValueError:
+            print(usage())
+    else:
+        print usage()
