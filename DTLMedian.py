@@ -27,15 +27,11 @@
 #       {'N':('C1','C2') ...}
 #
 
-import sys
-import traceback
-import time
 import optparse
 from operator import itemgetter
 import numpy as np
 import DTLReconGraph
 import NewDiameter
-import RunTests
 
 
 def mapping_node_sort(ordered_gene_node_list, ordered_species_node_list, mapping_node_list):
@@ -360,13 +356,14 @@ def choose_random_median_wrapper(median_recon, med_roots, count_dict):
 
     # Find the total amount of medians that can stem from the roots
     total_meds = 0.0
-    for root in med_roots:
-        total_meds += count_dict[root]
+    for median_root in med_roots:
+        total_meds += count_dict[median_root]
 
     # Create the choice list for the roots we can choose from, weighted to account for median
     # counts each root can produce
     # Note that numpy is so basic that we need to do a convoluted workaround to choose tuples from a list
-    final_root = med_roots[np.random.choice(len(med_roots), p=[count_dict[root] / total_meds for root in med_roots])]
+    final_root = med_roots[np.random.choice(len(med_roots), p=[count_dict[med_root] / total_meds for med_root in
+                                                               med_roots])]
 
     return choose_random_median(median_recon, final_root, count_dict)
 
@@ -407,104 +404,10 @@ def choose_random_median(median_recon, map_node, count_dict):
         random_submedian.update(choose_random_median(median_recon, next_event[2], count_dict))
 
     # Make sure our single path median is indeed a subgraph of the median
-    assert check_subgraph(median_recon, random_submedian), 'Median is not a subgraph of the recon graph!'
+    assert check_subgraph(median_recon, random_submedian), 'The randomly chosen single-path median is not a subgraph ' \
+                                                           'of the full median!'
 
     return random_submedian
-
-
-def compute_median_from_file(filename='le1', dup=2, transfer=3, loss=1):
-
-    species_tree, gene_tree, dtl_recon_graph, mpr_count, best_roots = DTLReconGraph.reconcile(filename, dup, transfer,
-                                                                                              loss)
-
-    # Reformat gene tree and get info on it, as well as for the species tree in the following line
-    postorder_gene_tree, gene_tree_root, gene_node_count = NewDiameter.reformat_tree(gene_tree, "pTop")
-    postorder_species_tree, species_tree_root, species_node_count = NewDiameter.reformat_tree(species_tree,
-                                                                                              "hTop")
-
-    # Get a list of the mapping nodes in preorder
-    preorder_mapping_node_list = mapping_node_sort(postorder_gene_tree, postorder_species_tree,
-                                                   dtl_recon_graph.keys())
-
-    # Find the dictionary for frequency scores for the given mapping nodes and graph, as well as the given gene root
-    scores_dict = generate_scores(list(reversed(preorder_mapping_node_list)), dtl_recon_graph, gene_tree_root)
-
-    # Now find the median and related info
-    median_reconciliation, n_meds, med_roots = compute_median(dtl_recon_graph, scores_dict[0],
-                                                              preorder_mapping_node_list, best_roots)
-
-    # Initialize the dictionary that will tell us how many medians can be spawned from a particular event node
-    med_counts = dict()
-
-    # Now fill it
-    for root in med_roots:
-        count_mprs(root, median_reconciliation, med_counts)
-
-    # In case we may want it, here we calculate a random, uniformly sampled single-path median from the median
-    random_median = choose_random_median_wrapper(median_reconciliation, med_roots, med_counts)
-
-    return median_reconciliation
-
-
-def calc_med_diameter(filename='TreeLifeData/COG0195.newick', log=None, dup=2, transfer=3, loss=1):
-
-    start_time = time.clock()
-    species_tree, gene_tree, dtl_recon_graph, mpr_count, best_roots = DTLReconGraph.reconcile(filename, dup, transfer,
-                                                                                              loss)
-    dtl_recon_graph_time = time.clock()-start_time
-
-    start_time = time.clock()
-    # Reformat gene tree and get info on it, as well as for the species tree in the following line
-    postorder_gene_tree, gene_tree_root, gene_node_count = NewDiameter.reformat_tree(gene_tree, "pTop")
-    postorder_species_tree, species_tree_root, species_node_count = NewDiameter.reformat_tree(species_tree,
-                                                                                              "hTop")
-
-    # Get a list of the mapping nodes in preorder
-    preorder_mapping_node_list = mapping_node_sort(postorder_gene_tree, postorder_species_tree,
-                                                   dtl_recon_graph.keys())
-
-    # Find the dictionary for frequency scores for the given mapping nodes and graph, as well as the given gene root
-    scores_dict = generate_scores(list(reversed(preorder_mapping_node_list)), dtl_recon_graph, gene_tree_root)
-    median_reconciliation, n_meds, _ = compute_median(dtl_recon_graph, scores_dict[0], preorder_mapping_node_list,
-                                                      best_roots)
-
-    median_time = time.clock() - start_time
-    start_time = time.clock()
-
-    # Clean up the reconciliation graph
-    NewDiameter.clean_graph(dtl_recon_graph, gene_tree_root)
-
-    # Use the diameter algorithm to find the diameter between the recon graph and its median
-    diameter = NewDiameter.new_diameter_algorithm(postorder_species_tree, postorder_gene_tree, gene_tree_root,
-                                                  median_reconciliation, dtl_recon_graph, False, False)
-    print("Median diameter found: {0}".format(diameter))
-    diameter_time = time.clock()-start_time
-    if log is not None:
-        costs = "D:{0} T:{1} L:{2}".format(dup, transfer, loss)
-        RunTests.write_to_csv(log + "_med.csv", costs, filename, mpr_count, gene_node_count, species_node_count,
-                              dtl_recon_graph_time, [("Median Count", n_meds, median_time), ("Selected Median Diameter",
-                                                                                             diameter, diameter_time)])
-
-
-def rep_calc_med_diameter(minimum=1, maximum=5666, log="COG_Median_2", dup=2, transfer=3, loss=1):
-    
-    # Loop through all the files in TreeLifeData
-    for i in range(minimum, maximum):
-
-        # Start building the number of the tree of life data file
-        filenum = str(i).zfill(4)
-        filename = "TreeLifeData/COG{0}.newick".format(filenum)
-        print("Calculating {0} now!".format(filename))
-        
-        try:
-            calc_med_diameter(filename, log, dup, transfer, loss)
-        except IOError:
-            print('File %s does not exist' % filename)
-        except KeyboardInterrupt:
-            raise
-        except:
-            print('File {0} failed!'.format(filename))
-            print traceback.print_exc(sys.exc_traceback)
 
 
 def usage():
@@ -512,17 +415,21 @@ def usage():
     :return: the usage statement associated with running this file
     """
 
-    return ('usage: DTLMedian filename dup_cost transfer_cost loss_cost [-r] [-n]')
+    return 'usage: DTLMedian filename dup_cost transfer_cost loss_cost [-r] [-n]'
 
 
-if __name__ == '__main__':
+def main():
+    """
+    :return: nothing. This function will run the main loop for the command line interface.
+    """
 
     p = optparse.OptionParser(usage=usage())
 
-    p.add_option('-r', '--random', dest='random', help='Allows user to add a random median reconciliation to the '
-                 'output', action='store_true', default=False)
-    p.add_option('-c', '--count', dest='count', help='Allows the user to add the number of median reconciliations to'
-                 'the output', action='store_true', default=False)
+    p.add_option('-r', '--random', dest='random', help='Add a random median reconciliation from the full median'
+                                                       ' reconciliation graph of the given file to the output',
+                 action='store_true', default=False)
+    p.add_option('-c', '--count', dest='count', help='Add the number of median reconciliations to'
+                                                     'the output', action='store_true', default=False)
 
     options, args = p.parse_args()
 
@@ -555,8 +462,8 @@ if __name__ == '__main__':
             scores_dict = generate_scores(list(reversed(preorder_mapping_node_list)), dtl_recon_graph, gene_tree_root)
 
             # Now find the median and related info
-            median_reconciliation, n_meds, med_roots = compute_median(dtl_recon_graph, scores_dict[0],
-                                                                      preorder_mapping_node_list, best_roots)
+            median_reconciliation, n_meds, roots_for_median = compute_median(dtl_recon_graph, scores_dict[0],
+                                                                             preorder_mapping_node_list, best_roots)
 
             # We'll always want to output the median
             output.append(median_reconciliation)
@@ -572,18 +479,26 @@ if __name__ == '__main__':
                 med_counts = dict()
 
                 # Now fill it
-                for root in med_roots:
+                for root in roots_for_median:
                     count_mprs(root, median_reconciliation, med_counts)
 
                 # In case we may want it, calculate a random, uniformly sampled single-path median from the median recon
-                random_median = choose_random_median_wrapper(median_reconciliation, med_roots, med_counts)
+                random_median = choose_random_median_wrapper(median_reconciliation, roots_for_median, med_counts)
                 output.append(random_median)
 
             # Now print all of the output requested by the user
-            for result in output:
-                print(str(result) + '\n')
+            for i in range(len(output)):
+                if i != (len(output) - 1):
+                    print(str(output[i]) + '\n')
+                else:
+                    print(str(output[i]))
 
         except ValueError:
             print(usage())
     else:
         print usage()
+
+
+if __name__ == '__main__':
+
+    main()
