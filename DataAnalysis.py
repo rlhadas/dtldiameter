@@ -58,16 +58,17 @@ def read_file(csv_file, mpr_strip=0, mpr_equals_median_strip=False):
 
 def set_label(axis, label, letter, latex):
     if latex:
-        axis.set_xlabel(label+"\n"r"{\fontsize{30pt}{3em}\selectfont{}("+letter+")}", linespacing=2.5,
+        axis.set_xlabel(label+"\n"r"{\fontsize{50pt}{3em}\selectfont{}("+letter+")}", linespacing=2.5,
                                  labelpad=20)
     else:
         axis.set_xlabel(label)
 
 def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter_list, diameter_name,
               normalized_diameter, normalized_diameter_name, mpr_list, DP_timings,
-              diameter_timings, total_timings, name, latex):
+              diameter_timings, total_timings, name, latex, color):
     size = 4
-    color = 'black'
+    if color == None:
+        color = 'black'
     y_range = float(y_limits[1] - y_limits[0])
     y_padding = y_range * 0.05
     diameter_ylim_b = y_limits[0] - y_padding
@@ -86,6 +87,10 @@ def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter
         y_bottom = y_min - padding
         y_top = y_max + padding
         fig, ax = plt.subplots(ncols=3, nrows=1)
+
+        if latex:
+            fig.subplots_adjust(bottom=0.2)
+
         fig.canvas.set_window_title("{0} Plots {1}".format(file, name))
 
         diameter = ax[1]
@@ -96,7 +101,7 @@ def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter
         diameter.scatter(gene_count_list, diameter_list, c=color, s=size)
         set_label(diameter, "Gene Tree Size", "b", latex)
         diameter.set_xlim(0, gene_xlim)
-        diameter.set_title("{0} vs. Gene Count".format(diameter_name))
+        diameter.set_title("{0} vs. Gene Tree Size".format(diameter_name))
         diameter.set_ylim(y_bottom, y_top)
 
         bins = 100
@@ -112,13 +117,20 @@ def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter
         mpr_diameter.set_title("{0} vs. MPR Count".format(diameter_name))
         mpr_diameter.set_xscale('log')
         mpr_diameter.set_ylim(y_bottom, y_top)
+        if latex:
+            # Kinda hacky way of reducing the number of ticks.
+            mpr_diameter.set_xticks(mpr_diameter.get_xticks()[1:-1:2])
 
         for a in ax:
             if log_y:
                 a.set_yscale('log')
             a.grid()
 
-    fig, ax = plt.subplots(ncols=2, nrows=1)
+    fig, ax = plt.subplots(ncols=3, nrows=1)
+
+    if latex:
+        fig.subplots_adjust(bottom=0.2)
+
     fig.canvas.set_window_title("{0} Normalized Plots {1}".format(file, name))
     norm_diameter_hist = ax[0]
     norm_mpr_diameter = ax[2]
@@ -146,6 +158,9 @@ def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter
     norm_mpr_diameter.set_title("{0} vs. MPR Count".format(normalized_diameter_name))
     norm_mpr_diameter.grid()
     norm_mpr_diameter.set_xscale('log')
+    if latex:
+        # Kinda hacky way of reducing the number of ticks. (also changes log spacing, so we remove extra)
+        norm_mpr_diameter.set_xticks(norm_mpr_diameter.get_xticks()[1:-1:2])
 
     # plt.show()
     # return
@@ -179,6 +194,8 @@ def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter
         total_time.set_xscale('log')
 
 
+
+
 def analyse_data(csv_file, given_properties, non_normalized, timings, plot, latex, strip_mprs, strip_equal):
     """
     This function analyses a provided csv_file of data returned from RunTests.py. The analysis will include a list of
@@ -203,7 +220,7 @@ def analyse_data(csv_file, given_properties, non_normalized, timings, plot, late
     if plot:
         plt.rc('text', usetex=latex)
         if latex:
-            plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+            plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': '22'})
             plt.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
 
     mpr_list = []
@@ -257,7 +274,7 @@ def analyse_data(csv_file, given_properties, non_normalized, timings, plot, late
     displayListValues(gene_count_list, "Gene Tree Size")
     displayListValues(gene_count_list, "Species Tree Size")
     #displayListValues(mpr_over_d_list, "MPR Count/Diameter")
-    #displayListValues(mpr_over_normalized_d_list, "MPR Count/(Diameter/Gene Count)")
+    #displayListValues(mpr_over_normalized_d_list, "MPR Count/(Diameter/Gene Tree Size)")
     if timings:
         displayListValues(DP_timings, "Reconciliation Running Time (seconds)")
         displayListValues(total_timings, "Total Running Time (seconds)")
@@ -298,17 +315,32 @@ def analyse_data(csv_file, given_properties, non_normalized, timings, plot, late
             data_list = prop_list_dict["Median Count"]
             plot_info_list += [("Median Count", mpr_list, "Normalized Median Count", (0,1), data_list)]
 
-        if "Worst Median Diameter" in prop_list_dict:
-            data_list = prop_list_dict["Worst Median Diameter"]
-            plot_info_list += [("Worst Median Diameter", gene_count_list, "Normalized Worst Median Diameter", (0,2), data_list)]
+        if "Worst Median Distance" in prop_list_dict:
+            data_list = prop_list_dict["Worst Median Distance"]
+            plot_info_list += [("Worst Median Distance", gene_count_list, "Normalized Worst Median Distance", (0,2), data_list)]
 
-        if "Random Median Average Diameter" in prop_list_dict:
-            data_list = prop_list_dict["Random Median Average Diameter"]
-            plot_info_list += [("Random Median Average Diameter", prop_list_dict["Diameter"], "Average Normalized Median Distance", (0.5,1), data_list)]
+        if "Random Median Diameter Average" in prop_list_dict:
+            data_list = prop_list_dict["Random Median Diameter Average"]
+            plot_info_list += [("Random Median Diameter Average", prop_list_dict["Diameter"], "Average Normalized Median Distance", (0.5,1), data_list)]
 
         if "Random Median Diameter Standard Deviation" in prop_list_dict:
             data_list = prop_list_dict["Random Median Diameter Standard Deviation"]
             plot_info_list += [("Random Median Diameter Standard Deviation", [1] * len(prop_list_dict["Diameter"]), "Random Median Diameter Standard Deviation", (0,4), data_list)]
+
+        if "Unique Median Count" in prop_list_dict:
+            data_list = prop_list_dict["Unique Median Count"]
+            plot_info_list += [("Unique Median Count", mpr_list, "Unique Median Count (Normalized to MPR Count)", (0,1), data_list)]
+
+        if "Best Random Median Diameter" in prop_list_dict:
+            data_list = prop_list_dict["Best Random Median Diameter"]
+            plot_info_list += [("Best Random Median Diameter", prop_list_dict["Worst Median Distance"],
+                                "Best Random Median Diameter (Normalized to Worst Median)", (0.7, 1), data_list)]
+
+        if "Median Diameter" in prop_list_dict:
+            data_list = prop_list_dict["Median Diameter"]
+            plot_info_list += [("Median Diameter", prop_list_dict["Diameter"],
+                                "Median Diameter (Normalized to Diameter)", (0, 1), data_list)]
+
 
 
         for prop in plot_info_list:
@@ -323,12 +355,16 @@ def analyse_data(csv_file, given_properties, non_normalized, timings, plot, late
                 timing_data = timing_list_dict[prop_name + " Computation Time"]
             else:
                 timing_data = data_list
+            color = None
+            if len(prop) == 6:
+                color = prop[6]
+
             make_plot(csv_file, y_limits, non_normalized, timings, gene_count_list, data_list,
                       prop_name, prop_normalized, normalized_prop_name, mpr_list, DP_timings,
-                      timing_data, total_timings, prop_name + " " + name_postfix, latex)
+                      timing_data, total_timings, prop_name + " " + name_postfix, latex, color)
 
 
-def find_specific(csv_file="COG_Median_13.csv"):
+def find_specific(csv_file="COG_Med_Diameter.csv"):
     file_props, length, column_lookup = read_file(csv_file, False, False)
 
     mprs_1 = 0
@@ -340,10 +376,15 @@ def find_specific(csv_file="COG_Median_13.csv"):
     mpr_not_med = 0
     mpr_lt = [0]*13
     mpr_gt = 0
+    mpr_diameter_neq_med_diameter = 0
 
     for i in range(0, length):
         mpr_count = file_props["MPR Count"][i]
         median = file_props["Median Count"][i]
+        diameter = file_props["Diameter"][i]
+        median_diameter = file_props["Median Diameter"][i]
+        if diameter != median_diameter:
+            mpr_diameter_neq_med_diameter += 1
         if mpr_count == "1":
             mprs_1 += 1
         elif mpr_count == "2":
@@ -368,6 +409,7 @@ def find_specific(csv_file="COG_Median_13.csv"):
     print "MPR != median count: {0}".format(mpr_not_med)
     print "MPR count > 2 & MPR == median count: {0}".format(mprs_gt_2_not)
     print "MPR count > 2 & MPR != median count: {0}".format(mprs_gt_2_eq)
+    print "Diameter != Median Diameter: {0}".format(mpr_diameter_neq_med_diameter)
 
 
 def check_files(log, path):
@@ -433,10 +475,12 @@ def main():
                  help="includes plot with non-normalized y-axes")
     p.add_option("-m", "--median-count", dest="median_count", action="store_true", default=False,
                  help="plot the number of medians")
-    p.add_option("-M", "--worst-median", dest="worst_median", action="store_true", default=False,
+    p.add_option("-w", "--worst-median", dest="worst_median", action="store_true", default=False,
                  help="plot the worst medians")
+    p.add_option("-M", "--median_diameter", dest="median_diameter", action="store_true", default=False,
+                 help="plot the diameter of median space")
     p.add_option("-r", "--random-median-average", dest="average_median", action="store_true", default=False,
-                 help="plot the worst medians")
+                 help="plot the average of the random medians")
     p.add_option("-s", "--strip-mprs", dest="strip_mprs", help="ignore any file with fewer mprs than this number",
                  metavar="MPR-MIN", default="0")
     p.add_option("-e", "--strip-equal", dest="strip_equal", help="ignore any file where mprs == median",
@@ -450,7 +494,7 @@ def main():
                                                                 "and any files in the directory but not in the log.",
                  metavar="CHECK_PATH")
 
-
+    "Median Diameter"
     (options, args) = p.parse_args()
     if len(args) != 1:
         p.error("1 argument must be provided: file")
@@ -466,6 +510,7 @@ def main():
     diameter = options.diameter
     median_count = options.median_count
     worst_median = options.worst_median
+    median_diameter = options.median_diameter
     average_median = options.average_median
     strip_equal = options.strip_equal
 
@@ -479,11 +524,14 @@ def main():
     if median_count:
         plot_types += ["Median Count"]
     if worst_median:
-        plot_types += ["Worst Median Diameter"]
+        plot_types += ["Worst Median Distance"]
     if average_median:
-        plot_types += ["Random Median Average Diameter",
-                       "Random Median Diameter Standard Deviation"]
-
+        plot_types += ["Random Median Diameter Average",
+                       "Random Median Diameter Standard Deviation",
+                       "Best Random Median Diameter",
+                       "Unique Median Count"]
+    if median_diameter:
+        plot_types += ["Median Diameter"]
 
     if latex and not plot:
         print "Warning: option '-l' (--use-latex) has no effect without option '-p' (--plot)!"
