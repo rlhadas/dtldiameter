@@ -107,7 +107,15 @@ DTLMedian.py has the following usage pattern:
 
 > DTLMedian.py filename dup_cost transfer_cost loss_cost [-r] [-c]
 
-So, the user must enter the name of the file from which to take the data (in .newick format) as well as the costs associated with a duplication event, transfer event, and loss event, respectively. By default, all valid calls will return the full median reconciliation, however the user may add to the ouput by including the options shown above, with a newline separating each different value returned. Including the -r option adds a random single-path median reconciliation, drawn from the full median reconciliation, to the output. Including the -c option adds the number of single-path medians that could be derived from the full median reconciliation to the output. If both of these options are selected, the order of the printed output is: the full median reconciliation, the number of medians, a randomly selected median.
+So, the user must enter the name of the file from which to take the data (in .newick format) as well as the costs associated with a duplication event, transfer event, and loss event, respectively. By default, all valid calls will return the full median reconciliation, however the user may add to the output by including the options shown below, with a newline separating each different value returned.
+
+#### Optional Flags
+
+* -r or --random: adds a random single-path median reconciliation, drawn from the full median reconciliation, to the output
+
+* -c or --count: adds the number of single-path medians that could be derived from the full median reconciliation to the output
+
+If both of these options are selected, the order of the printed output is: the full median reconciliation, the number of medians, a randomly selected median.
 
 ### Via Interactive Mode
 
