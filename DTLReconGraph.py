@@ -174,7 +174,7 @@ def DP(host_tree, parasite_tree, phi, dup_cost, transfer_cost, loss_cost):
 
                     # Calculate cospeciation cost assuming the cost is 0
                     co_ep_eh = min(C[(ep1, eh1)] + C[(ep2, eh2)],
-                                 C[(ep1, eh2)] + C[(ep2, eh1)])
+                                   C[(ep1, eh2)] + C[(ep2, eh1)])
                     co_min = []  # List to keep track lowest cost speciation
                     if co_ep_eh == C[(ep2, eh1)] + C[(ep1, eh2)]:
                         co_min.append(("S", (p_child2, h_child1),

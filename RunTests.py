@@ -368,8 +368,8 @@ def main():
 
     (options, args) = p.parse_args()
     if len(args) != 4:
-        p.error("4 arguments must be provided: file, d, t, and l")
-    file = args[0]
+        p.error("4 arguments must be provided: filename, d, t, and l")
+    filename = args[0]
     d = float(args[1])
     t = float(args[2])
     l = float(args[3])
@@ -395,9 +395,9 @@ def main():
         p.error("some form of output must be specified! (-l or -d must be used when -q is used)")
     elif options.count is not None:
         rep = options.count
-        repeatedly_calculate_diameter(file, rep[0], rep[1], d, t, l, log, debug, verbose, loud, cluster)
+        repeatedly_calculate_diameter(filename, rep[0], rep[1], d, t, l, log, debug, verbose, loud, cluster)
     else:
-        calculate_diameter_from_file(file, d, t, l, log, debug, verbose, zero_loss, median_count, worst_median, cluster)
+        calculate_diameter_from_file(filename, d, t, l, log, debug, verbose, zero_loss, median_count, worst_median, cluster)
 
 if __name__ == "__main__":
     main()
