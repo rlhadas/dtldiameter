@@ -1,5 +1,7 @@
 # dtldiameter
 
+Note that all of the included code was created using Python 2.7. Users wishing to run these programs on a machine that has a later version of Python may experience several syntax-related errors.
+
 ## How to use DTLReconGraph.py
 
 ### How to use this code from the command line:

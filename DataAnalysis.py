@@ -1,6 +1,7 @@
 # DataAnalysis.py
 # Written by Eli Zupke, June 2017
-# This is a rather messy file for analyzing the data returned by Diameter. It is not intended for release.
+# This file takes csv files and turns them into graphs. It's not that well written. Abandon 85% of hope, all ye who
+# enter here.
 
 
 import csv
@@ -62,17 +63,15 @@ def set_label(axis, label, letter, latex):
     else:
         axis.set_xlabel(label)
 
-def make_plot(file, zero_loss, non_normalized, timings, gene_count_list, diameter_list, diameter_name,
+def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter_list, diameter_name,
               normalized_diameter, normalized_diameter_name, mpr_list, DP_timings,
               diameter_timings, total_timings, name, latex):
     size = 4
     color = 'black'
-    if zero_loss:
-        diameter_ylim_b = -0.05
-        diameter_ylim_t = 1.05
-    else:
-        diameter_ylim_b = -0.1
-        diameter_ylim_t = 2.1
+    y_range = float(y_limits[1] - y_limits[0])
+    y_padding = y_range * 0.05
+    diameter_ylim_b = y_limits[0] - y_padding
+    diameter_ylim_t = y_limits[1] + y_padding
 
     gene_xlim = max(gene_count_list) * 1.05
 
@@ -119,7 +118,7 @@ def make_plot(file, zero_loss, non_normalized, timings, gene_count_list, diamete
                 a.set_yscale('log')
             a.grid()
 
-    fig, ax = plt.subplots(ncols=3, nrows=1)
+    fig, ax = plt.subplots(ncols=2, nrows=1)
     fig.canvas.set_window_title("{0} Normalized Plots {1}".format(file, name))
     norm_diameter_hist = ax[0]
     norm_mpr_diameter = ax[2]
@@ -180,12 +179,12 @@ def make_plot(file, zero_loss, non_normalized, timings, gene_count_list, diamete
         total_time.set_xscale('log')
 
 
-def analyse_data(csv_file, properties, non_normalized, timings, plot, latex, strip_mprs, strip_equal):
+def analyse_data(csv_file, given_properties, non_normalized, timings, plot, latex, strip_mprs, strip_equal):
     """
     This function analyses a provided csv_file of data returned from RunTests.py. The analysis will include a list of
      the mins, maxes, medians, and modes of several specified properties, and might also include plots.
     :param csv_file:        The logfile we will be analysing
-    :param properties:      A list containing strings, each one being the name of a column in the csv file that we want
+    :param given_properties:      A list containing strings, each one being the name of a column in the csv file that we want
                              to inspect (or plot). All properties must have associated timing data (named as
                              '[prop_name] Computation Time'.
     :param non_normalized:  A boolean value representing whether we also want to include plots that are not normalized
@@ -212,40 +211,46 @@ def analyse_data(csv_file, properties, non_normalized, timings, plot, latex, str
     diameter_present = False
     zero_loss_present = False
 
-    file_props, length, _ = read_file(csv_file, strip_mprs, strip_equal)
-    for prop in properties:
-        assert prop in file_props, "Property '{0}' passed to analyse_data was not found in log file '{1}'!".format(prop, csv_file)
-        assert prop + " Computation Time" in file_props, \
+    properties_that_exist_in_file, length, _ = read_file(csv_file, strip_mprs, strip_equal)
+
+
+    for prop in given_properties:
+        assert prop in properties_that_exist_in_file, "Property '{0}' passed to analyse_data was not found in log file '{1}'!".format(prop, csv_file)
+        assert prop + " Computation Time" in properties_that_exist_in_file or not timings, \
             "Property '{0}' passed to analyse_data did not have associated " \
             "timing information in log file '{1}'!".format(prop, csv_file)
     for prop in ["Costs", "MPR Count", "Gene Node Count", "Species Node Count", "DTLReconGraph Computation Time"]:
-        assert prop in file_props, "Required property '{0}' was not found in log file '{1}'!".format(prop, csv_file)
+        assert prop in properties_that_exist_in_file, "Required property '{0}' was not found in log file '{1}'!".format(prop, csv_file)
 
-    DTL = file_props["Costs"][0]
-    mpr_list = file_props["MPR Count"]
+    DTL = properties_that_exist_in_file["Costs"][0]
+    mpr_list = properties_that_exist_in_file["MPR Count"]
     mpr_list = map(lambda e: float(e), mpr_list)
-    gene_count_list = file_props["Gene Node Count"]
+    gene_count_list = properties_that_exist_in_file["Gene Node Count"]
     gene_count_list= map(lambda e: float(e), gene_count_list)
-    species_count_list = file_props["Species Node Count"]
+    species_count_list = properties_that_exist_in_file["Species Node Count"]
     species_count_list = map(lambda e: float(e), species_count_list)
-    DP_timings = file_props["DTLReconGraph Computation Time"]
+    DP_timings = properties_that_exist_in_file["DTLReconGraph Computation Time"]
     DP_timings = map(lambda e: float(e), DP_timings)
     prop_list_dict = {}
     timing_list_dict = {}
 
-    for property in properties:
-        prop_list_dict[property] = file_props[property]
+    for property in given_properties:
+        prop_list_dict[property] = properties_that_exist_in_file[property]
+        # This is kind of janky. We only turn properties with these names into floats
         if "Diameter" in property or "Count" in property or "Number" in property:
             prop_list_dict[property] = map(lambda e: float(e), prop_list_dict[property])
-            timing_list_dict[property + " Computation Time"] = file_props[property + " Computation Time"]
+            if timings:
+                timing_list_dict[property + " Computation Time"] = properties_that_exist_in_file[property + " Computation Time"]
 
+    # We assign to the total timings variable even if we are not using timings, because other functions
+    # want it, even if they are unused.
     total_timings = DP_timings[:]
-
-    for timing_list in timing_list_dict:
-        timing_list_dict[timing_list] = map(lambda e: float(e), timing_list_dict[timing_list])
-        cur_list = timing_list_dict[timing_list]
-        for i, time in enumerate(cur_list):
-            total_timings[i] += time
+    if timings:
+        for timing_list in timing_list_dict:
+            timing_list_dict[timing_list] = map(lambda e: float(e), timing_list_dict[timing_list])
+            cur_list = timing_list_dict[timing_list]
+            for i, time in enumerate(cur_list):
+                total_timings[i] += time
 
 
     displayListValues(mpr_list, "MPR Count")
@@ -260,48 +265,67 @@ def analyse_data(csv_file, properties, non_normalized, timings, plot, latex, str
     for property_list in prop_list_dict:
         displayListValues(prop_list_dict[property_list], property_list)
 
-    name = ""
-    if strip_mprs == 2:
-        name += " >1 MPR"
-    elif strip_mprs > 2:
-        name += " >{0} MPRs".format(strip_mprs-1)
-
-    if strip_equal:
-        name += " MPR != Median"
-
     filepath, extension = os.path.splitext(csv_file)
     if plot:
+
+        name_postfix = ""
+        if strip_mprs == 2:
+            name_postfix += " >1 MPR"
+        elif strip_mprs > 2:
+            name_postfix += " >{0} MPRs".format(strip_mprs - 1)
+
+        if strip_equal:
+            name_postfix += " MPR != Median"
+
+        # plot_info_list is a list of tuples with the format ("NAME", normalizing_list, "Normalized Name", (bottom_lim,
+        # top_lim), data_list). data_list is the list of values we are plotting, and normalizing_list is the list of
+        # values we will normalize against.
+
+        # To make a property something that we try to plot if possible, add another if statement here.
+
         plot_info_list = []
 
+        # check to see if something we reocognize is in
         if "Diameter" in prop_list_dict:
             data_list = prop_list_dict["Diameter"]
-            plot_info_list += [("Diameter", gene_count_list, "Normalized Diameter", False, data_list)]
+            plot_info_list += [("Diameter", gene_count_list, "Normalized Diameter", (0,2), data_list)]
 
         if "Zero Loss Diameter" in prop_list_dict:
             data_list = prop_list_dict["Zero Loss Diameter"]
-            plot_info_list += [("Zero Loss Diameter", gene_count_list, "Normalized Zero Loss Diameter", True, data_list)]
+            plot_info_list += [("Zero Loss Diameter", gene_count_list, "Normalized Zero Loss Diameter", (0,1), data_list)]
 
         if "Median Count" in prop_list_dict:
             data_list = prop_list_dict["Median Count"]
-            plot_info_list += [("Median Count", mpr_list, "Normalized Median Count", True, data_list)]
+            plot_info_list += [("Median Count", mpr_list, "Normalized Median Count", (0,1), data_list)]
 
         if "Worst Median Diameter" in prop_list_dict:
             data_list = prop_list_dict["Worst Median Diameter"]
-            plot_info_list += [("Worst Median Diameter", gene_count_list, "Normalized Worst Median Diameter", False, data_list)]
+            plot_info_list += [("Worst Median Diameter", gene_count_list, "Normalized Worst Median Diameter", (0,2), data_list)]
+
+        if "Random Median Average Diameter" in prop_list_dict:
+            data_list = prop_list_dict["Random Median Average Diameter"]
+            plot_info_list += [("Random Median Average Diameter", prop_list_dict["Diameter"], "Average Normalized Median Distance", (0.5,1), data_list)]
+
+        if "Random Median Diameter Standard Deviation" in prop_list_dict:
+            data_list = prop_list_dict["Random Median Diameter Standard Deviation"]
+            plot_info_list += [("Random Median Diameter Standard Deviation", [1] * len(prop_list_dict["Diameter"]), "Random Median Diameter Standard Deviation", (0,4), data_list)]
+
 
         for prop in plot_info_list:
             prop_name = prop[0]
             prop_normalized_against = prop[1]
             normalized_prop_name = prop[2]
-            zero_loss_limits = prop[3]
+            y_limits = prop[3]
             prop_data = prop[4]
             prop_normalized = map(lambda i: prop_data[i[0]] / prop_normalized_against[i[0]],
                              enumerate(prop_data))
-            make_plot(csv_file, zero_loss_limits, non_normalized, timings, gene_count_list, prop_list_dict[prop_name],
-                      prop_name, prop_normalized,
-                      normalized_prop_name, mpr_list, DP_timings,
-                      timing_list_dict[prop_name + " Computation Time"], total_timings,
-                      prop_name + " " + name, latex)
+            if timings:
+                timing_data = timing_list_dict[prop_name + " Computation Time"]
+            else:
+                timing_data = data_list
+            make_plot(csv_file, y_limits, non_normalized, timings, gene_count_list, data_list,
+                      prop_name, prop_normalized, normalized_prop_name, mpr_list, DP_timings,
+                      timing_data, total_timings, prop_name + " " + name_postfix, latex)
 
 
 def find_specific(csv_file="COG_Median_13.csv"):
@@ -334,16 +358,7 @@ def find_specific(csv_file="COG_Median_13.csv"):
             mpr_eq_med += 1
         else:
             mpr_not_med += 1
-        med_count = int(median)
-        placed = False
-        for i in range(0, len(mpr_lt)):
-            lower = 2**i
-            upper = 2**(i+1)
-            if lower <= med_count < upper:
-                mpr_lt[i] += 1
-                placed = True
-        if not placed:
-            mpr_gt += 1
+
 
     print "{0} families observed.".format(length)
     print "MPR count == 1: {0}".format(mprs_1)
@@ -353,13 +368,6 @@ def find_specific(csv_file="COG_Median_13.csv"):
     print "MPR != median count: {0}".format(mpr_not_med)
     print "MPR count > 2 & MPR == median count: {0}".format(mprs_gt_2_not)
     print "MPR count > 2 & MPR != median count: {0}".format(mprs_gt_2_eq)
-    print ""
-    print "Families per median range:"
-    for i, count in enumerate(mpr_lt):
-        lower = 2 ** i
-        upper = 2 ** (i+1)
-        print "[{0}, {1}): \t\t{2}".format(lower, upper, count)
-    print ">{0}:\t\t{1}".format(2**len(mpr_lt), mpr_gt)
 
 
 def check_files(log, path):
@@ -427,6 +435,8 @@ def main():
                  help="plot the number of medians")
     p.add_option("-M", "--worst-median", dest="worst_median", action="store_true", default=False,
                  help="plot the worst medians")
+    p.add_option("-r", "--random-median-average", dest="average_median", action="store_true", default=False,
+                 help="plot the worst medians")
     p.add_option("-s", "--strip-mprs", dest="strip_mprs", help="ignore any file with fewer mprs than this number",
                  metavar="MPR-MIN", default="0")
     p.add_option("-e", "--strip-equal", dest="strip_equal", help="ignore any file where mprs == median",
@@ -456,8 +466,10 @@ def main():
     diameter = options.diameter
     median_count = options.median_count
     worst_median = options.worst_median
+    average_median = options.average_median
     strip_equal = options.strip_equal
 
+    # List of the names of the things we will try to plot
     plot_types = []
 
     if diameter:
@@ -468,6 +480,9 @@ def main():
         plot_types += ["Median Count"]
     if worst_median:
         plot_types += ["Worst Median Diameter"]
+    if average_median:
+        plot_types += ["Random Median Average Diameter",
+                       "Random Median Diameter Standard Deviation"]
 
 
     if latex and not plot:

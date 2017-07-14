@@ -472,7 +472,7 @@ def new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_gr
     if debug:
         print "Exit Table A: {0}".format(exit_table_a)
         print ""
-        print "Exit Table b: {0}".format(exit_table_b)
+        print "Exit Table B: {0}".format(exit_table_b)
     # Now, the diameter of this reconciliation will be the maximum entry on the enter table.
     diameter = 0
     for uA in enter_table[gene_tree_root]:
