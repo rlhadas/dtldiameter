@@ -4,7 +4,7 @@ Note that all of the included code was created using Python 2.7. Users wishing t
 
 ## How to use DTLReconGraph.py
 
-### How to use this code from the command line:
+### From the Command Line:
 
 After typing `python DTLReconGraph.py`, one should enter the values for:
 
@@ -23,7 +23,7 @@ This code then prints:
 
 Note each of these printed values is separated by a blank line, so the output is easily readable by a user.
 
-### How to use this code in interactive mode:
+### Via Interactive Mode:
 
 One should simply type `python -i DTLReconGraph.py` to access the contents of the code. From there, all major and helper functions will be available, however the two most important are DP and reconcile. 
 
@@ -99,9 +99,23 @@ To calculate a set of numbered files, use this function:
 
 Where `file_pattern` is the pattern used to find the right files (as described in the command line `-i` flag section), `start` is the starting file number, `end` is the exclusive ending file number, and the rest of the parameters are the same as `calculate_diameter_from_file()`.
 
+## How to Use DTLMedian.py
+
+### From the Command Line
+
+DTLMedian.py has the following usage pattern:
+
+> DTLMedian.py filename dup_cost transfer_cost loss_cost [-r] [-c]
+
+So, the user must enter the name of the file from which to take the data (in .newick format) as well as the costs associated with a duplication event, transfer event, and loss event, respectively. By default, all valid calls will return the full median reconciliation, however the user may add to the ouput by including the options shown above, with a newline separating each different value returned. Including the -r option adds a random single-path median reconciliation, drawn from the full median reconciliation, to the output. Including the -c option adds the number of single-path medians that could be derived from the full median reconciliation to the output. If both of these options are selected, the order of the printed output is: the full median reconciliation, the number of medians, a randomly selected median.
+
+### Via Interactive Mode
+
+Although the user could access any and all functions within this file via interactive mode, there are no stand-alone functions that easily integrate basic information, such as a data file name, and can produce information about the median from the get-go. In order to make good use of the functions contained in this file, the user would need to have information from DTLReconGraph.py, such as a DTL reconciliation graph and the roots for the DTL reconciliation graph, since the functions in this file take the raw results in those forms.
+
 ## How To Use DataAnalysis.py
 
-### From The Command Line
+### From the Command Line
 
 #### Required Argument:
 
