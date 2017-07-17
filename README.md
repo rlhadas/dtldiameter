@@ -35,7 +35,7 @@ DP is the workhorse of the code - it utilizes several helper functions to actual
 
 Reconcile is the more practically useful function. Since the data are implemented as newick trees and mappings, reconcile utilizes a separate module that both handles getting the data from a separate file and reformats the inputs to work nicely with DP. Reconcile reformat the species and gene trees to match the output format given in the section on running from the command line, and prints out these trees along with the reconciliation graph, the number of Maximum Parsimony Reconciliations as an integer, and a list of mappings (as tuples) of gene nodes onto species nodes that could produce an MPR. Although one may play with any/all functions included in this file and those on which it depends, DP and reconcile are the most important functions.
 
-## How to Calculate Diameters and Medians
+## How to use RunTests.py
 
 The main program used for calculating diameters and medians is RunTests.py.
 
