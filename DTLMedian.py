@@ -7,7 +7,7 @@
 # -1. DATA STRUCTURE QUICK REFERENCE:
 #
 #
-#   DTL Reconciliation graph:
+#   DTL or Median Reconciliation graph:
 #       { mapping_node: [event1, event2, ... eventn, number], ...}
 #   Event:
 #       ('event_type', child_mapping_node1, child_mapping_node2)
@@ -26,8 +26,6 @@
 #   vertex_trees:
 #       {'N':('C1','C2') ...}
 #
-
-# TODO: Make this datastructure reference complete
 
 import optparse
 from operator import itemgetter
@@ -107,9 +105,9 @@ def generate_scores(preorder_mapping_node_list, dtl_recon_graph, gene_root):
     # add scores to an unused entry than to check to see if they are (None, None) in the first place.
     scores[(None, None)] = 0.0
 
-    # TODO document key/value pairs
     # The scored graph is like the DTLReconGraph, except instead of individual events being in a list, they are the
-    # keys of a dictionary where the values are the frequency scores of those events.
+    # keys of a dictionary where the values are the frequency scores of those events. So, event_scores takes event
+    # nodes as keys and (after being filled below) has the frequencies of those events in MPRs as the values
     event_scores = {}
 
     for mapping_node in preorder_mapping_node_list:
@@ -120,7 +118,7 @@ def generate_scores(preorder_mapping_node_list, dtl_recon_graph, gene_root):
         # This fills up the event scores dictionary
         calculate_scores_for_children(mapping_node, dtl_recon_graph, event_scores, scores, counts)
 
-    #TODO: Do we still need this?
+    # Normalize all of the event_scores
     for mapping_node in preorder_mapping_node_list:
         for event in dtl_recon_graph[mapping_node]:
                 event_scores[event] = event_scores[event] / float(count)
@@ -171,25 +169,25 @@ def count_mprs(mapping_node, dtl_recon_graph, counts):
     return count
 
 
-def calculate_scores_for_children(mapping_node, dtl_recon_graph, event_scores, scores, counts):
+def calculate_scores_for_children(mapping_node, dtl_recon_graph, event_scores, mapping_scores, counts):
     """
     This function calculates the frequency score for every mapping node that is a child of an event node that is a
     child of the given mapping node, and stores them in scoredGraph.
     :param mapping_node: The mapping node that is the parent of the two scores we will compute
     :param dtl_recon_graph: The DTL reconciliation graph (see data structure quick reference at top of file)
     :param event_scores: The scored DTL reconciliation graph (see data structure quick reference at top of file)
-    :param scores: The score for each mapping node (which will ultimately be thrown away) that this function helps
-    build up
-    :param counts: The counts generated in countMPRs (from the bottom-up)
+    :param mapping_scores: The score for each mapping node (which will ultimately be thrown away) that this function
+    helps build up
+    :param counts: The counts generated in countMPRs (from the bottom-up). Note that the counts are filled during a
+    bottom-up traversal, and the scores are filled in during a top-down traversal after the counts
     :return: Nothing, but scoredGraph is built up.
     """
-    #TODO: assure that documentation is clear that counts are built on the way up and scores on the way down
-    #TODO: change neame of scores.
-    assert scores[mapping_node] != 0, "Sorting error! Ensure that parents are calculated before children"
+
+    assert mapping_scores[mapping_node] != 0, "Sorting error! Ensure that parents are calculated before children"
 
     # This multiplier results in  counts[event_node] / counts[mapping_node] for each event node, which is the % of
     # this mapping node's scores (scores[mapping_node]) that it gives to each event node.
-    multiplier = float(scores[mapping_node]) / counts[mapping_node]
+    multiplier = float(mapping_scores[mapping_node]) / counts[mapping_node]
 
     # Iterate over every event
     for event_node in dtl_recon_graph[mapping_node]:
@@ -199,8 +197,8 @@ def calculate_scores_for_children(mapping_node, dtl_recon_graph, event_scores, s
         # Save the children produced by the current event
         mapping_child1 = event_node[1]
         mapping_child2 = event_node[2]
-        scores[mapping_child1] += event_scores[event_node]
-        scores[mapping_child2] += event_scores[event_node]
+        mapping_scores[mapping_child1] += event_scores[event_node]
+        mapping_scores[mapping_child2] += event_scores[event_node]
 
 
 def compute_median(dtl_recon_graph, event_scores, postorder_mapping_nodes, mpr_roots):
@@ -237,7 +235,9 @@ def compute_median(dtl_recon_graph, event_scores, postorder_mapping_nodes, mpr_r
         # Get the events for the current mapping node and their running (frequency - 0.5) sums, in a list
         events = list()
         for event in dtl_recon_graph[map_node]:
-            #TODO: comment what the indices represent, or make a helper function that makes it obvious
+
+            # Note that 'event' is of the form: ('event ID', 'Child 1', 'Child 2'), so the 0th element is the event
+            # ID and the 1st and 2nd elements are the children produced by the event
             if event[0] == 'L':  # Losses produce only one child, so we only need to look to one lower mapping node
                 events.append((event, sum_freqs[event[1]][1] + event_scores[event] - 0.5))
             else:  # Only other options are T, S, and D, which produce two children
@@ -263,39 +263,25 @@ def compute_median(dtl_recon_graph, event_scores, postorder_mapping_nodes, mpr_r
     # Get all possible roots of the graph and their running frequency scores, in a list, for later use
     possible_root_combos = [(root, sum_freqs[root][1]) for root in mpr_roots]
 
-    # TODO: make this block (for loop) more concise, use filter
-    # Find the best (frequency - 0.5) sum in the entire graph based at the roots and the corresponding roots
-    # TODO: explain what these variables represent
-    best_sum = None
-    best_roots = list()
-    for root_combo in possible_root_combos:
+    # Find the best frequency - 0.5 sum for all of the potential roots for the median
+    best_sum = max(possible_root_combos, key=itemgetter(1))[1]
 
-        # Occurs at the very first iteration and sets initial states of variables for comparison in higher levels
-        if best_sum is None:
-            best_sum = root_combo[1]
-            best_roots.append(root_combo[0])
-            continue
+    # Find all of the root combos for a median by filtering out the roots that don't give the best freq - 0.5 sum
+    best_root_combos = list(filter(lambda x: x[1] == best_sum, possible_root_combos))
 
-        # This case requires us to just add roots to the best roots list
-        if root_combo[1] == best_sum:
-            best_roots.append(root_combo[0])
+    # Extract just the roots from the previously filtered out list
+    best_roots = [root[0] for root in best_root_combos]
 
-        # This case requires us to clear the root list and set a new best_sum because we've found a better sum
-        elif root_combo[1] > best_sum:
-            best_sum = root_combo[1]
-            best_roots = [root_combo[0]]
-
-        # We just ignore the less than case since it's not a better result
-
-    #TODO: shorten these next two lines to one
     # Adjust the sum_freqs dictionary so we can use it with the buildDTLReconGraph function from DTLReconGraph.py
     for map_node in sum_freqs:
 
         # We place the event tuples into lists so they work well with the diameter algorithm
-        sum_freqs[map_node] = sum_freqs[map_node][0]  # Only use the event, no longer the associated frequency sum
+        sum_freqs[map_node] = sum_freqs[map_node][0]  # Only use the events, no longer the associated frequency sum
 
-    # TODO: make a comment reminding what the arguments passed here represent, esp. the sum_freqs arg
     # Use the buildDTLReconGraph function from DTLReconGraph.py to find the median recon graph
+    # Note that build_dtl... requires a list of the best roots for a reconciliation graph, the events for each
+    # mapping node that are viable for an MPR (in our case, the median), and an empty dicitonary to populate
+    # as the final return value
     med_recon_graph = DTLReconGraph.build_dtl_recon_graph(best_roots, sum_freqs, {})
 
     # Check to make sure the median is a subgraph of the DTL reconciliation
@@ -328,38 +314,6 @@ def check_subgraph(recon_graph, subrecon):
                 if event not in recon_graph[map_node]:
                     return False
     return True
-
-
-#TODO: do we use this anymore?
-def build_median_recon_graph(event_dict, root):
-    """
-    :param event_dict: a dictionary with mapping nodes for keys and values which are the single event that mapping
-    node may have in a median reconciliation, as a tuple but each of these tuples are the single event in a list.
-    :param root: the mapping node at which the median reconciliation or a subgraph of the median
-    is starting at
-    :return: a DTL Reconciliation Graph in the form returned in DTLReconGraph.py, except here the only
-    reconciliation represented is the median - i.e., only events and mapping nodes valid in the median are
-    represented. Thus, this function returns the median reconciliation graph. Note, however, that the
-    notation and naming conventions for variables are kept general enough to be applied to other types
-    of reconciliations, if need be.
-    """
-
-    # Initialize the dict to be returned for this subgraph
-    subgraph_recon_dict = dict()
-
-    # From the get go, we need to save the current subgraph root and its event
-    subgraph_recon_dict.update({root: event_dict[root]})
-
-    # Check for a loss
-    if event_dict[root][0][0] == 'L':
-        subgraph_recon_dict.update(build_median_recon_graph(event_dict, event_dict[root][0][1]))
-
-    # Check for events that produce two children
-    elif event_dict[root][0][0] in ['T', 'S', 'D']:
-        subgraph_recon_dict.update(build_median_recon_graph(event_dict, event_dict[root][0][1]))
-        subgraph_recon_dict.update(build_median_recon_graph(event_dict, event_dict[root][0][2]))
-
-    return subgraph_recon_dict
 
 
 def choose_random_median_wrapper(median_recon, med_roots, count_dict):
@@ -469,19 +423,18 @@ def main():
             # Reformat gene tree and get info on it, as well as for the species tree in the following line
             postorder_gene_tree, gene_tree_root, gene_node_count = Diameter.reformat_tree(gene_tree, "pTop")
             postorder_species_tree, species_tree_root, species_node_count = Diameter.reformat_tree(species_tree,
-                                                                                                      "hTop")
+                                                                                                   "hTop")
 
             # Get a list of the mapping nodes in preorder
-            # TODO: change the variable names of this call to not contradict the saved variable name, and elsewhere
-            preorder_mapping_node_list = mapping_node_sort(postorder_gene_tree, postorder_species_tree,
-                                                           dtl_recon_graph.keys())
+            postorder_mapping_node_list = mapping_node_sort(postorder_gene_tree, postorder_species_tree,
+                                                            dtl_recon_graph.keys())
 
             # Find the dictionary for frequency scores for the given mapping nodes and graph, and the given gene root
-            scores_dict = generate_scores(list(reversed(preorder_mapping_node_list)), dtl_recon_graph, gene_tree_root)
+            scores_dict = generate_scores(postorder_mapping_node_list[::-1], dtl_recon_graph, gene_tree_root)
 
             # Now find the median and related info
             median_reconciliation, n_meds, roots_for_median = compute_median(dtl_recon_graph, scores_dict[0],
-                                                                             preorder_mapping_node_list, best_roots)
+                                                                             postorder_mapping_node_list, best_roots)
 
             # We'll always want to output the median
             output.append(median_reconciliation)
