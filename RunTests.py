@@ -102,8 +102,8 @@ def find_worst_median_distance(species_tree, gene_tree, gene_tree_root, dtl_reco
     :return:                        An entry to be added to the results list containing the Worst Median Distance
     """
     start_time = time.clock()
-    worst_median_distance = Diameter.new_diameter_algorithm(species_tree, gene_tree, gene_tree_root,
-                                                            median_reconciliation, dtl_recon_graph, debug, False)
+    worst_median_distance = Diameter.diameter_algorithm(species_tree, gene_tree, gene_tree_root,
+                                                        median_reconciliation, dtl_recon_graph, debug, False)
     worst_median_distance_time_taken = time.clock() - start_time
     return [("Worst Median Distance", worst_median_distance, worst_median_distance_time_taken)]
 
@@ -120,8 +120,8 @@ def find_median_diameter(species_tree, gene_tree, gene_tree_root, median_reconci
     :return:                        An entry to be added to the results list containing the Worst Median Distance
     """
     start_time = time.clock()
-    median_diameter = Diameter.new_diameter_algorithm(species_tree, gene_tree, gene_tree_root,
-                                                      median_reconciliation, median_reconciliation, debug, False)
+    median_diameter = Diameter.diameter_algorithm(species_tree, gene_tree, gene_tree_root,
+                                                  median_reconciliation, median_reconciliation, debug, False)
     worst_median_diameter_time_taken = time.clock() - start_time
     return [("Median Diameter", median_diameter, worst_median_diameter_time_taken)]
 
@@ -186,8 +186,8 @@ def find_median_cluster(filename, log, costs, gene_tree, gene_tree_root, species
             random_median_diameter = old_medians[median_hash]
             end_sub_time = 0
         else:
-            random_median_diameter = Diameter.new_diameter_algorithm(species_tree, gene_tree, gene_tree_root,
-                                                                     random_median, dtl_recon_graph, False, False)
+            random_median_diameter = Diameter.diameter_algorithm(species_tree, gene_tree, gene_tree_root,
+                                                                 random_median, dtl_recon_graph, False, False)
             old_medians[median_hash] = random_median_diameter
 
             end_sub_time = time.clock() - start_sub_time
@@ -271,7 +271,7 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     start_time = time.clock()
 
     # Now we draw the rest of the owl
-    diameter = Diameter.new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph, dtl_recon_graph, debug, False)
+    diameter = Diameter.diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph, dtl_recon_graph, debug, False)
 
     # And record how long it took to compute the diameter.
     diameter_time_taken = time.clock() - start_time
@@ -281,7 +281,7 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     # stored as tuples in the results list, which is passed to the write_to_csv function.
     if zero_loss:
         start_time = time.clock()
-        zl_diameter = Diameter.new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph, dtl_recon_graph, debug, True)
+        zl_diameter = Diameter.diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph, dtl_recon_graph, debug, True)
         zl_diameter_time_taken = time.clock()-start_time
         results += [("Zero Loss Diameter", zl_diameter, zl_diameter_time_taken)]
 

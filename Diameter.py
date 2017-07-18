@@ -1,8 +1,6 @@
-# NewDiameter.py
+# Diameter.py
 # Written by Eli Zupke and Andrew Ramirez July 2017
 # It is based off of Jordan Haack's more efficient work on a polynomial-time algorithm for the DTL MPR Diameter Problem
-
-#TODO Rename to Diameter
 
 # 0. ON THE PAPER
 #
@@ -138,11 +136,11 @@ def intersect_cost(event):
 
 def cost(event, zero_loss):
     """The cost added if exactly one of the reconciliations being looked at share a particular event.
-    :param event:
-    :param zero_loss:
-    :return:
+    :param event:       The event being shared
+    :param zero_loss:   Whether loss events should have cost = 0
+    :return:            The cost
     """
-    #TODO Explain zero_loss
+
     if zero_loss and event[0] == 'L':
         return 0
     return 1
@@ -209,31 +207,43 @@ def calculate_ancestral_table(species_tree):
     return ancestral_table
 
 
+def is_leaf(u, vertex_tree):
+    """
+    :param u:           The node to test
+    :param vertex_tree: The vertex tree that contains the node
+    :return:            A boolean value representing whether the given node is a leaf of the given tree.
+    """
+    return vertex_tree[u] == (None, None)
+
+
+def is_exit_event(event):
+    """
+    :param event:   An event to check
+    :return:        Whether said event is an exit event.
+    """
+    return event[0] not in ('C', 'L')
+
 def calculate_score_both_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b): # TODO
     """This function computes the score of a 'double exit', where both mapping nodes exit immediately.
-    :param zero_loss:           A boolean value representing whether ...
-    :param enter_table:
-    :param u:
-    :param gene_tree:
-    :param uA:
-    :param dtl_recon_graph_a:
-    :param uB:
-    :param dtl_recon_graph_b:
-    :return:                    The score of both events exiting
+    :param zero_loss:           A boolean value representing whether loss events should count for distance
+    :param enter_table:         The enter table, which we use here.
+    :param u:                   The gene node whose group we're in
+    :param gene_tree:           The gene tree in vertex format
+    :param uA:                  The 'a' mapping node
+    :param dtl_recon_graph_a:   The 'a' DTL reconciliation graph
+    :param uB:                  The 'b' mapping node
+    :param dtl_recon_graph_b:   The 'b' DTL reconciliation graph
+    :return:                    The score of both mapping nodes exiting
     """
     score_both_exit = float('-inf')
-    # TODO: Abstract this check into a helper function is_leaf(u)
-    # Test to see if u is a leaf (gene_tree[u] is a tuple containing u's children)
-    if gene_tree[u] == (None, None):
 
+    # Test to see if u is a leaf
+    if is_leaf(u, gene_tree):
         if uA == uB and ('C', (None, None), (None, None)) in dtl_recon_graph_a[uA]:
             score_both_exit = 0
     else:
-        #TODO Absract this into a helper function
-        uA_exit_events = filter(lambda event: isinstance(event, tuple) and event[0] not in ('C', 'L'),
-                                dtl_recon_graph_a[uA])
-        uB_exit_events = filter(lambda event: isinstance(event, tuple) and event[0] not in ('C', 'L'),
-                                dtl_recon_graph_b[uB])
+        uA_exit_events = filter(lambda event: isinstance(event, tuple) and is_exit_event(event), dtl_recon_graph_a[uA])
+        uB_exit_events = filter(lambda event: isinstance(event, tuple) and is_exit_event(event), dtl_recon_graph_b[uB])
         for e_a in uA_exit_events:
             child1 = e_a[1][0]
             child2 = e_a[2][0]
@@ -391,8 +401,27 @@ def calculate_ancestral_enter_score(zero_loss, is_swapped, enter_table, u, uA, u
             enter_scores += [enter_table[u][uA][(u, b_child)] + cost(event, zero_loss)]
         return max(enter_scores)
 
-# TODO Rename this as well
-def new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph_a, dtl_recon_graph_b, debug, zero_loss):
+
+def make_group_dict(gene_tree, dtl_recon_graph, postorder_species_nodes):
+    """
+    Returns a group dictionary of a particular dtl_recon_graph, that contains the mapping nodes in each gene node
+    :param gene_tree:               The vertex-based gene tree
+    :param dtl_recon_graph:         The dtl reconciliation graph we are using
+    :param postorder_species_nodes: A list of the species nodes in post order
+    :return:                        A dict keyed by gene node, where the values are the lists of mapping nodes for that
+                                     gene node.
+    """
+    postorder_group = {}
+    for u in gene_tree:
+        # First we make the dictionary only contain nodes that have this gene node
+        postorder_group[u] = filter(lambda mapping: mapping[0] == u, dtl_recon_graph)
+        # Then we sort the dictionary into postorder, using the species node's index in the postorder species list as a
+        # guide.
+        postorder_group[u] = sorted(postorder_group[u], key=lambda mapping: postorder_species_nodes.index(mapping[1]))
+    return postorder_group
+
+
+def diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph_a, dtl_recon_graph_b, debug, zero_loss):
     """
     This function finds the diameter of a reconciliation graph, as measured by the largest symmetric set difference
      of any two reconciliation trees inside of a reconciliation graph. While you can get standard diameter behaviour
@@ -411,21 +440,9 @@ def new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_gr
 
     postorder_gene_nodes = list(gene_tree.keys())
     postorder_species_nodes = list(species_tree.keys())
-    postorder_group_a = {}
-    postorder_group_b = {}
-    # TODO turn into helper function
-    for u in gene_tree:
-        # First we make the dictionary only contain nodes that have this gene node
-        postorder_group_a[u] = filter(lambda mapping: mapping[0] == u, dtl_recon_graph_a)
-        # Then we sort the dictionary into postorder, using the species node's index in the postorder species list as a
-        # guide.
-        postorder_group_a[u] = sorted(postorder_group_a[u], key=lambda mapping: postorder_species_nodes.index(mapping[1]))
-        # And we do it again for group B
-        # First we make the dictionary only contain nodes that have this gene node
-        postorder_group_b[u] = filter(lambda mapping: mapping[0] == u, dtl_recon_graph_b)
-        # Then we sort the dictionary into postorder, using the species node's index in the postorder species list as a
-        # guide.
-        postorder_group_b[u] = sorted(postorder_group_b[u], key=lambda mapping: postorder_species_nodes.index(mapping[1]))
+    postorder_group_a = make_group_dict(gene_tree, dtl_recon_graph_a, postorder_species_nodes)
+    postorder_group_b = make_group_dict(gene_tree, dtl_recon_graph_b, postorder_species_nodes)
+
     ancestral_table = calculate_ancestral_table(species_tree)
 
     if debug:
