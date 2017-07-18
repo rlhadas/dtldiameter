@@ -193,7 +193,7 @@ def find_median_cluster(filename, log, costs, gene_tree, gene_tree_root, species
             end_sub_time = time.clock() - start_sub_time
 
         sub_results = [("Random Median", median_hash, end_random_time),
-                       ("Random Median Diameter", random_median_diameter, end_sub_time)]
+                       ("Random Median Distance", random_median_diameter, end_sub_time)]
 
         # Store this diameter so that we can do maths to it
         random_median_diameters += [random_median_diameter]
@@ -207,15 +207,15 @@ def find_median_cluster(filename, log, costs, gene_tree, gene_tree_root, species
     std_dev = np.std(random_median_diameters)
 
     random_median_diameter_time_taken = time.clock() - start_time
-    return [("Random Median Diameter Average", avg, random_median_diameter_time_taken),
-            ("Random Median Diameter Standard Deviation", std_dev),
-            ("Best Random Median Diameter", min(random_median_diameters)),
-            ("Worst Random Median Diameter", max(random_median_diameters)),
+    return [("Random Median Distance Average", avg, random_median_diameter_time_taken),
+            ("Random Median Distance Standard Deviation", std_dev),
+            ("Best Random Median Distance", min(random_median_diameters)),
+            ("Worst Random Median Distance", max(random_median_diameters)),
             ("Unique Median Count", len(old_medians))]
 
 
-def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbose=True, zero_loss=False, median=True,
-                                 worst_median=True, median_cluster=0, median_diameter=False):
+def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbose=True, zero_loss=False, median=False,
+                                 worst_median=False, median_cluster=0, median_diameter=False):
 
     """This function computes the diameter of space of MPRs in a DTL reconciliation problem,
      as measured by the symmetric set distance between the events of the two reconciliations of the pair
@@ -228,6 +228,8 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
       :param log:           The csv file to output results to (will create it if it does not exist)
       :param debug:         Whether to print out all of the tables
       :return:              Nothing, but we output results to a csv file."""
+
+    # TODO Update docstring
 
     # These statements check to make sure that all arguments were entered correctly.
     assert isinstance(log, (str, unicode)) or log is None
@@ -242,8 +244,6 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
 
     # Get everything we need from DTLReconGraph
     edge_species_tree, edge_gene_tree, dtl_recon_graph, mpr_count, best_roots = DTLReconGraph.reconcile(filename, D, T, L)
-
-    # Record the time that this code starts
 
     # The gene tree needs to be in node format, not edge format, so we find that now.
     # (This also puts the gene_tree into postorder, as an ordered dict)
@@ -298,14 +298,10 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
                                 best_roots, median_cluster)
 
 
-    #if verbose:
-     #   print "The diameter of the given reconciliation graph is \033[33m\033[1m{0}\033[0m, (or \033[33m\033[1m{1}\033[0m if losses do not affect the diameter)".format(diameter, zl_diameter)
-
-    # Timing data is inaccurate in debug mode (print statements take too long), so we only give it to the user in non-
-    # debug mode.
-    if not debug and verbose:
-        print "Diameter found in \033[33m\033[1m{0} seconds\033[0m".format(diameter_time_taken)
-        print "Total time: \033[33m\033[1m{0} seconds\033[0m".format(diameter_time_taken + DTLReconGraph_time_taken)
+    if verbose:
+        print "Results:"
+        for result in results:
+            print "\t{0}:\t\033[33m\033[1m{1}\033[0m".format(result[0], result[1])
 
     # Now, we write our results to a csv file.
     if log is not None:
@@ -368,27 +364,27 @@ def main():
     usage = "usage: %prog [options] file d t l"
     p = optparse.OptionParser(usage=usage)
     p.add_option("-l", "--log", dest="logfile", help="writes a logfile in CSV format to LOGFILE", metavar="LOGFILE")
+    p.add_option("-q", "--quiet", dest="verbose", action="store_false", default=True,
+                 help="suppresses (most) text output")
     p.add_option("-i", "--iterate", dest="count", action="store", nargs=2, help="calculates every file matching a "
                                                                                 "pattern (defined in the file argument)"
                                                                                 " with number MIN to MAX.",
+
                  metavar="MIN MAX", type=int)
+    p.add_option("-L", "--loud", dest="loud", action="store_true", default=False,
+                 help="print the bell character after each failed file when using the iterate flag")
     p.add_option("-d", "--debug", dest="debug", action="store_true", default=False, help= "prints out every DP table with size less"
                                                                            "than 30x30")
-    p.add_option("-q", "--quiet", dest="verbose", action="store_false", default=True,
-                 help="suppresses (most) text output")
-    p.add_option("-c", "--cluster", dest="cluster", action="store", default=0,
-                 help="find the distances to the furthest mpr of the specified number of random single medians (requires logging)")
-
-    p.add_option("-L", "--loud", dest="loud", action="store_true", default=False,
-                 help="print the bell character after each failed file")
     p.add_option("-z", "--zero-loss", dest="zero_loss", action="store_true", default=False,
                  help="calculate the zero-loss diameter of the file")
     p.add_option("-m", "--median-count", dest="median_count", action="store_true", default=False,
                  help="count the number of median reconciliations present")
-    p.add_option("-w", "--worst-median", dest="worst_median", action="store_true", default=False,
-                 help="find the largest possible distance from a median reconciliation to an MPR")
     p.add_option("-M", "--median-diameter", dest="median_diameter", action="store_true", default=False,
                  help="find the diameter of the median reconciliation space")
+    p.add_option("-w", "--worst-median", dest="worst_median", action="store_true", default=False,
+                 help="find the largest possible distance from a median reconciliation to an MPR")
+    p.add_option("-c", "--cluster", dest="cluster", action="store", default=0,
+                 help="find the distances to the furthest mpr of the specified number of random single medians (requires logging)")
 
     (options, args) = p.parse_args()
     if len(args) != 4:
@@ -420,6 +416,7 @@ def main():
         p.error("some form of output must be specified! (-l or -d must be used when -q is used)")
     elif options.count is not None:
         rep = options.count
+        #TODO rename to better
         repeatedly_calculate_diameter(filename, rep[0], rep[1], d, t, l, log, debug, verbose, loud, zero_loss, median_count, worst_median, cluster, median_diameter)
     else:
         calculate_diameter_from_file(filename, d, t, l, log, debug, verbose, zero_loss, median_count, worst_median, cluster, median_diameter)
