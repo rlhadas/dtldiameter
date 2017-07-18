@@ -33,7 +33,7 @@ import optparse
 from operator import itemgetter
 import numpy as np
 import DTLReconGraph
-import NewDiameter
+import Diameter
 
 
 def mapping_node_sort(ordered_gene_node_list, ordered_species_node_list, mapping_node_list):
@@ -460,8 +460,8 @@ def main():
                                                                                                       transfer, loss)
 
             # Reformat gene tree and get info on it, as well as for the species tree in the following line
-            postorder_gene_tree, gene_tree_root, gene_node_count = NewDiameter.reformat_tree(gene_tree, "pTop")
-            postorder_species_tree, species_tree_root, species_node_count = NewDiameter.reformat_tree(species_tree,
+            postorder_gene_tree, gene_tree_root, gene_node_count = Diameter.reformat_tree(gene_tree, "pTop")
+            postorder_species_tree, species_tree_root, species_node_count = Diameter.reformat_tree(species_tree,
                                                                                                       "hTop")
 
             # Get a list of the mapping nodes in preorder
