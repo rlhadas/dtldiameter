@@ -58,7 +58,7 @@ def read_file(csv_file, mpr_strip=0, mpr_equals_median_strip=False):
 
 def set_label(axis, label, letter, latex):
     if latex:
-        axis.set_xlabel(label+"\n"r"{\fontsize{50pt}{3em}\selectfont{}("+letter+")}", linespacing=2.5,
+        axis.set_xlabel(label+"\n"r"{\fontsize{40pt}{3em}\selectfont{}("+letter+")}", linespacing=2.5,
                                  labelpad=20)
     else:
         axis.set_xlabel(label)
@@ -115,7 +115,7 @@ def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter
             bins = numpy.logspace(numpy.log10(y_bottom), numpy.log10(y_top), bins)
         else:
             diameter_hist.set_ylim(y_bottom, y_top)
-        diameter_hist.hist(diameter_list, orientation='horizontal', bins=bins)
+        diameter_hist.hist(diameter_list, orientation='horizontal', bins=bins, color='grey')
         # diameter_hist.set_ylabel("Diameter")
         set_label(diameter_hist, "Number of Gene Families", "a", latex)
         if not latex:
@@ -163,7 +163,7 @@ def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter
     if not latex:
         norm_diameter.set_title("{0} vs. Gene Tree Size".format(normalized_diameter_name))
 
-    norm_diameter_hist.hist(normalized_diameter, 100, orientation='horizontal')
+    norm_diameter_hist.hist(normalized_diameter, 100, orientation='horizontal', color='grey')
     # norm_diameter_hist.set_ylabel("Diameter (normalized to gene node count)")
     set_label(norm_diameter_hist, "Number of Gene Families", "a", latex)
     if not latex:
@@ -259,8 +259,16 @@ def analyse_data(csv_file, given_properties, non_normalized, timings, plot, late
     if plot:
         plt.rc('text', usetex=latex)
         if latex:
-            plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': '22'})
-            plt.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
+            #plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': '22'})
+            plt.rc('font', **{'family': 'sans-serif', 'size': '22'})
+            plt.rcParams['text.latex.preamble'] = [
+                r"\usepackage{amsmath}",
+                r'\usepackage{siunitx}',  # i need upright \micro symbols, but you need...
+                r'\sisetup{detect-all}',  # ...this to force siunitx to actually use your fonts
+                r'\usepackage{helvet}',  # set the normal font here
+                r'\usepackage{sansmath}',  # load up the sansmath so that math -> helvet
+                r'\sansmath'  # <- tricky! -- gotta actually tell tex to use!
+            ]
 
     mpr_list = []
 
