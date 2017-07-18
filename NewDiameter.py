@@ -2,6 +2,8 @@
 # Written by Eli Zupke and Andrew Ramirez July 2017
 # It is based off of Jordan Haack's more efficient work on a polynomial-time algorithm for the DTL MPR Diameter Problem
 
+#TODO Rename to Diameter
+
 # 0. ON THE PAPER
 #
 #       This program is based off of an algorithm written by Jordan Haack. There is a paper that describes this
@@ -12,17 +14,17 @@
 #   every mapping and event node relating to that gene. While this is a useful abstraction to think about the problem,
 #   it doesn't seem to be required in the code. So when the documentation of this program refers to the "group" of a
 #   node, sometimes notated as Group(u), be aware that it does not directly correspond to any data structure in the
-#   program.
+#   program. #TODO mention group mapping node dcitionaries
 
 # 1. ON TREE REPRESENTATION FORMATS:
 #
-#       There are two formats in this code-base for trees: Edge-based trees, and vertex-based trees. The edged-based
+#       There are two formats in this code-base for trees: Edge-based trees, and vertex-based trees. The edge-based
 #   trees are what are output from DTLReconGraph.py (which returns them straight from newickFormatReader). For
-#   readability and convenience purposes, both the gene and species trees are converted into vertex-based
+#   readability and convenience purposes, both the gene and species trees are converted into vertex-based trees.
 #
-#   Both formats use dictionaries to store the tree structure, but they differ somewhat
+#   Both formats use dictionaries to store the tree structure, but they differ somewhat in execution
 # Example:
-#   When N is a node descended from R, with children C1 and C2,
+#   When N is a node with parent R and children C1 and C2,
 #
 #   An entry in the edge-based representation looks like this:
 #       {('R','N'): ('R','N', ('N','C1'), ('N','C2')) ...}
@@ -76,10 +78,10 @@
 #       A incomparable to B:'in'
 #       A is equal to B:    'eq'
 #
-#   DTL Reconciliation graph (post clean_graph):
+#   DTL Reconciliation graph (after clean_graph has been run):
 #       { mapping_node: [event1, event2, ...] ...}
 #
-#   Event node (post clean_graph):
+#   Event node (after clean_graph has been run):
 #       ('type', child_mapping_node1, child_mapping_node2)
 #
 #   Mapping node:
@@ -87,18 +89,14 @@
 #   or in loss or contemporary event nodes:
 #       (None, None)
 #
-#   (edge) trees:
+#   edge_trees:
 #       {('R','N'): ('R','N', ('N','C1'), ('N','C2')) ...}
 #       aka:
 #       {root_edge: (root_edge[0], root_edge[1], child1_edge, child2_edge) ...}
 #
-#   vertex_trees:
+#   (vertex) trees:
 #       {'N':('C1','C2') ...}
 
-import DTLReconGraph
-import time
-import csv
-import os.path
 from collections import OrderedDict
 from itertools import product
 
@@ -145,7 +143,12 @@ def intersect_cost(event):
 
 
 def cost(event, zero_loss):
-    """The cost added if exactly one of the reconciliations being looked at share a particular event."""
+    """The cost added if exactly one of the reconciliations being looked at share a particular event.
+    :param event:
+    :param zero_loss:
+    :return:
+    """
+    #TODO Explain zero_loss
     if zero_loss and event[0] == 'L':
         return 0
     return 1
@@ -162,7 +165,7 @@ def calculate_ancestral_table(species_tree):
     for info on what certain strings mean). It creates these dictionaries
     by traversing the tree.
     """
-
+    #TODO Improve readability
     # Initialize the ancestral table which we will be returning
     ancestral_table = dict()
 
@@ -173,11 +176,7 @@ def calculate_ancestral_table(species_tree):
     vertices = [vertex for vertex in species_tree]
 
     # Initialize all entries to incomparable to make following calculations easier
-    for pair in list(product(vertices, vertices)):  # Cartesian product of all of the vertices
-
-        # Save variables to match format used in previous discussions of this new algorithm
-        A = pair[0]
-        B = pair[1]
+    for A, B in list(product(vertices, vertices)):  # Cartesian product of all of the vertices
 
         # Check if we need to make a dictionary for the first vertex
         if A not in ancestral_table:
@@ -216,19 +215,30 @@ def calculate_ancestral_table(species_tree):
     return ancestral_table
 
 
-def calculate_score_both_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b):
-    """This function computes the score of a 'double exit', where both mapping nodes exit immediately."""
+def calculate_score_both_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b): # TODO
+    """This function computes the score of a 'double exit', where both mapping nodes exit immediately.
+    :param zero_loss:           A boolean value representing whether ...
+    :param enter_table:
+    :param u:
+    :param gene_tree:
+    :param uA:
+    :param dtl_recon_graph_a:
+    :param uB:
+    :param dtl_recon_graph_b:
+    :return:                    The score of both events exiting
+    """
     score_both_exit = float('-inf')
-
-    # Test to see if u is a leaf
+    # TODO: Abstract this check into a helper function is_leaf(u)
+    # Test to see if u is a leaf (gene_tree[u] is a tuple containing u's children)
     if gene_tree[u] == (None, None):
-        #TODO: Why do we need to check for contemporaneous events?
+
         if uA == uB and ('C', (None, None), (None, None)) in dtl_recon_graph_a[uA]:
             score_both_exit = 0
     else:
-        uA_exit_events = filter(lambda event: isinstance(event, tuple) and event[0] not in ('A2', 'L'),
+        #TODO Absract this into a helper function
+        uA_exit_events = filter(lambda event: isinstance(event, tuple) and event[0] not in ('C', 'L'),
                                 dtl_recon_graph_a[uA])
-        uB_exit_events = filter(lambda event: isinstance(event, tuple) and event[0] not in ('A2', 'L'),
+        uB_exit_events = filter(lambda event: isinstance(event, tuple) and event[0] not in ('C', 'L'),
                                 dtl_recon_graph_b[uB])
         for e_a in uA_exit_events:
             child1 = e_a[1][0]
@@ -272,9 +282,11 @@ def calculate_incomparable_enter_score(zero_loss, enter_table, u, uA, uA_loss_ev
     :param uA_loss_events:      A list of the loss events on that mapping node
     :param uB:                  The second mapping node to compare
     :param uB_loss_events:      A list of the loss events on that mapping node
-    :param score_both_exit:   The score of the double-exit that was previously calculated for uA and uB
+    :param score_both_exit:     The score of the double-exit that was previously calculated for uA and uB
     """
     scores = [score_both_exit]
+
+    # We add up all of the scores for both uA's and uB's loss events.
     for event in uA_loss_events:
         a_child = event[1][1]
         scores += [enter_table[u][(u, a_child)][uB] + cost(event, zero_loss)]
@@ -287,7 +299,7 @@ def calculate_incomparable_enter_score(zero_loss, enter_table, u, uA, uA_loss_ev
 def calculate_equal_enter_score(zero_loss, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
                                 score_both_exit, exit_table_a, exit_table_b):
     """Returns the enter table entry for [uA][uB] with the assumption that uA equals uB (but they might have different
-    loss events leaading from them!
+    loss events leading from them!)
     :param zero_loss:           Whether losses should not count
     :param enter_table:         The DP table we are computing part of
     :param u:                   The gene node whose group we are in
@@ -295,21 +307,24 @@ def calculate_equal_enter_score(zero_loss, enter_table, u, uA, uA_loss_events, u
     :param uA_loss_events:      A list of the loss events on that mapping node
     :param uB:                  The second mapping node to compare
     :param uB_loss_events:      A list of the loss events on that mapping node
-    :param score_both_exit:   The score of the double-exit that was previously calculated for uA and uB
-    :param exit_table:   The single exit table, which contains information about the single exit events for
+    :param score_both_exit:     The score of the double-exit that was previously calculated for uA and uB
+    :param exit_table:          The exit table, which contains information about the single exit events for
                                 the mapping nodes' children.
     """
     # If uA does not equal uB, then something's gone horribly wrong.
-    assert uA == uB
+    assert uA == uB, "calculate_equal_enter_score called on values of uA and uB that are not equal"
 
     # Build up a list of the possible scores of this pair of mapping nodes, so that we can find the maximum later.
     scores = [score_both_exit]
+
+    # This finds the scores when both nodes take losses
     for a_event in uA_loss_events:
         a_child = a_event[1][1]
         for b_event in uB_loss_events:
             b_child = b_event[1][1]
             scores += [enter_table[u][(u, a_child)][(u, b_child)]]
 
+    # These find the scores when only one node takes a loss
     for event in uA_loss_events:
         a_child = event[1][1]
         scores += [exit_table_b[u][uB][(u, a_child)] + cost(event, zero_loss)]
@@ -382,7 +397,7 @@ def calculate_ancestral_enter_score(zero_loss, is_swapped, enter_table, u, uA, u
             enter_scores += [enter_table[u][uA][(u, b_child)] + cost(event, zero_loss)]
         return max(enter_scores)
 
-
+# TODO Rename this as well
 def new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph_a, dtl_recon_graph_b, debug, zero_loss):
     """
     This function finds the diameter of a reconciliation graph, as measured by the largest symmetric set difference
@@ -404,6 +419,7 @@ def new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_gr
     postorder_species_nodes = list(species_tree.keys())
     postorder_group_a = {}
     postorder_group_b = {}
+    # TODO turn into helper function
     for u in gene_tree:
         # First we make the dictionary only contain nodes that have this gene node
         postorder_group_a[u] = filter(lambda mapping: mapping[0] == u, dtl_recon_graph_a)
@@ -430,13 +446,16 @@ def new_diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_gr
         enter_table[u] = {}
         exit_table_a[u] = {}
         exit_table_b[u] = {}
+
+        # Loop over every pair of mapping nodes in group(u)
         for uA in postorder_group_a[u]:
             enter_table[u][uA] = {}
             for uB in postorder_group_b[u]:
+
                 score_both_exit = calculate_score_both_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b)
 
 
-                #print "{0} - {1}".format(uA, uB)
+                # Look up the ancestry string in the precomputed table (indexed by the species nodes of the mapping nodes)
                 ancestry = ancestral_table[uA[1]][uB[1]]
 
                 uA_loss_events = filter(lambda event: isinstance(event, tuple) and event[0] == 'L',
@@ -535,7 +554,7 @@ def print_table_nicely(table, deliminator, name="\t", dtype="map"):
         print line
     print "\033[0m"  # Return to default color
 
-
+# TODO: Check if we need this function
 def clean_graph(dtl_recon_graph, gene_tree_root):
     """Cleans up the graph created by DTLReconGraph.py by turning removing scores from event lists
      :param dtl_recon_graph:    The DTL reconciliation graph that we wish to clean

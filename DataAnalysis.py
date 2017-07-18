@@ -74,22 +74,27 @@ def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter
     diameter_ylim_b = y_limits[0] - y_padding
     diameter_ylim_t = y_limits[1] + y_padding
 
+    width = 18
+    height = 7
+
     gene_xlim = max(gene_count_list) * 1.05
 
     if non_normalized:
 
-        log_y = False
+        log_y = True
         y_max = max(diameter_list)
         y_min = min(diameter_list)
-        if log_y:
-            log_y_min = numpy.floor(numpy.log10(y_min)) - 1
         padding = (y_max - y_min) * 0.05
         y_bottom = y_min - padding
         y_top = y_max + padding
+        if log_y:
+            y_bottom = 1
+            y_top = 10000
         fig, ax = plt.subplots(ncols=3, nrows=1)
 
         if latex:
             fig.subplots_adjust(bottom=0.2)
+            fig.set_size_inches(width, height)
 
         fig.canvas.set_window_title("{0} Plots {1}".format(file, name))
 
@@ -101,22 +106,27 @@ def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter
         diameter.scatter(gene_count_list, diameter_list, c=color, s=size)
         set_label(diameter, "Gene Tree Size", "b", latex)
         diameter.set_xlim(0, gene_xlim)
-        diameter.set_title("{0} vs. Gene Tree Size".format(diameter_name))
-        diameter.set_ylim(y_bottom, y_top)
+        if not latex:
+            diameter.set_title("{0} vs. Gene Tree Size".format(diameter_name))
+
 
         bins = 100
         if log_y:
-            bins = numpy.logspace(log_y_min, numpy.log10(y_top), bins)
+            bins = numpy.logspace(numpy.log10(y_bottom), numpy.log10(y_top), bins)
+        else:
+            diameter_hist.set_ylim(y_bottom, y_top)
         diameter_hist.hist(diameter_list, orientation='horizontal', bins=bins)
         # diameter_hist.set_ylabel("Diameter")
         set_label(diameter_hist, "Number of Gene Families", "a", latex)
-        diameter_hist.set_title(diameter_name)
+        if not latex:
+            diameter_hist.set_title(diameter_name)
+
 
         mpr_diameter.scatter(mpr_list, diameter_list, c=color, s=size)
         set_label(mpr_diameter, "MPR Count", "c", latex)
-        mpr_diameter.set_title("{0} vs. MPR Count".format(diameter_name))
+        if not latex:
+            mpr_diameter.set_title("{0} vs. MPR Count".format(diameter_name))
         mpr_diameter.set_xscale('log')
-        mpr_diameter.set_ylim(y_bottom, y_top)
         if latex:
             # Kinda hacky way of reducing the number of ticks.
             mpr_diameter.set_xticks(mpr_diameter.get_xticks()[1:-1:2])
@@ -124,12 +134,20 @@ def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter
         for a in ax:
             if log_y:
                 a.set_yscale('log')
+            if latex:
+                a.yaxis.label.set_size(35)
+                a.xaxis.label.set_size(35)
             a.grid()
+
+        mpr_diameter.set_ylim(y_bottom, y_top)
+        diameter.set_ylim(y_bottom, y_top)
+        fig.tight_layout()
 
     fig, ax = plt.subplots(ncols=3, nrows=1)
 
     if latex:
         fig.subplots_adjust(bottom=0.2)
+        fig.set_size_inches(width, height)
 
     fig.canvas.set_window_title("{0} Normalized Plots {1}".format(file, name))
     norm_diameter_hist = ax[0]
@@ -142,22 +160,30 @@ def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter
     norm_diameter.set_xlim(0, gene_xlim)
     # norm_diameter.set_ylabel("Diameter (normalized to gene node count)")
     norm_diameter.set_ylim(diameter_ylim_b, diameter_ylim_t)
-    norm_diameter.set_title("{0} vs. Gene Tree Size".format(normalized_diameter_name))
-    norm_diameter.grid()
+    if not latex:
+        norm_diameter.set_title("{0} vs. Gene Tree Size".format(normalized_diameter_name))
 
-    norm_diameter_hist.grid()
     norm_diameter_hist.hist(normalized_diameter, 100, orientation='horizontal')
     # norm_diameter_hist.set_ylabel("Diameter (normalized to gene node count)")
     set_label(norm_diameter_hist, "Number of Gene Families", "a", latex)
-    norm_diameter_hist.set_title("{0} Counts".format(normalized_diameter_name))
+    if not latex:
+        norm_diameter_hist.set_title("{0} Counts".format(normalized_diameter_name))
     norm_diameter_hist.set_ylim(diameter_ylim_b, diameter_ylim_t)
 
     norm_mpr_diameter.scatter(mpr_list, normalized_diameter, c=color, s=size)
     norm_mpr_diameter.set_ylim(diameter_ylim_b, diameter_ylim_t)
     set_label(norm_mpr_diameter, "MPR Count", "c", latex)
-    norm_mpr_diameter.set_title("{0} vs. MPR Count".format(normalized_diameter_name))
-    norm_mpr_diameter.grid()
+    if not latex:
+        norm_mpr_diameter.set_title("{0} vs. MPR Count".format(normalized_diameter_name))
     norm_mpr_diameter.set_xscale('log')
+
+    for a in ax:
+        if latex:
+            a.yaxis.label.set_size(35)
+            a.xaxis.label.set_size(35)
+        a.grid()
+
+    fig.tight_layout()
     if latex:
         # Kinda hacky way of reducing the number of ticks. (also changes log spacing, so we remove extra)
         norm_mpr_diameter.set_xticks(norm_mpr_diameter.get_xticks()[1:-1:2])
@@ -166,6 +192,11 @@ def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter
     # return
     if timings:
         fig, ax = plt.subplots(ncols=3, nrows=1)
+
+        if latex:
+            fig.subplots_adjust(bottom=0.2)
+            fig.set_size_inches(width, height)
+
         fig.canvas.set_window_title("{0} Running Times {1}".format(file, name))
         DP_time = ax[0]
         diameter_time = ax[1]
@@ -173,25 +204,33 @@ def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter
         DP_time.scatter(gene_count_list, DP_timings, c=color, s=size)
         set_label(DP_time, "Gene Tree Size", "a", latex)
         DP_time.set_ylabel("Time (seconds)")
-        DP_time.set_title("Computing Reconciliation Graph")
-        DP_time.grid()
+        if not latex:
+            DP_time.set_title("Computing Reconciliation Graph")
         DP_time.set_yscale('log')
         DP_time.set_xscale('log')
         diameter_time.scatter(gene_count_list, diameter_timings, c=color, s=size)
         set_label(diameter_time, "Gene Tree Size", "b", latex)
-        diameter_time.set_ylabel("Time (seconds)")
-        diameter_time.set_title("Computing {0}".format(diameter_name))
-        diameter_time.grid()
+        #diameter_time.set_ylabel("Time (seconds)")
+        if not latex:
+            diameter_time.set_title("Computing {0}".format(diameter_name))
         diameter_time.set_yscale('log')
         diameter_time.set_ylim(0.001,10**4)
         diameter_time.set_xscale('log')
         total_time.scatter(gene_count_list, total_timings, c=color, s=size)
         set_label(total_time, "Gene Tree Size", "c", latex)
-        total_time.set_ylabel("Time (seconds)")
-        total_time.set_title("Total Running Time")
-        total_time.grid()
+        #total_time.set_ylabel("Time (seconds)")
+        if not latex:
+            total_time.set_title("Total Running Time")
         total_time.set_yscale('log')
         total_time.set_xscale('log')
+
+        for a in ax:
+            if latex:
+                a.yaxis.label.set_size(35)
+                a.xaxis.label.set_size(35)
+            a.grid()
+
+        fig.tight_layout()
 
 
 
@@ -236,7 +275,7 @@ def analyse_data(csv_file, given_properties, non_normalized, timings, plot, late
         assert prop + " Computation Time" in properties_that_exist_in_file or not timings, \
             "Property '{0}' passed to analyse_data did not have associated " \
             "timing information in log file '{1}'!".format(prop, csv_file)
-    for prop in ["Costs", "MPR Count", "Gene Node Count", "Species Node Count", "DTLReconGraph Computation Time"]:
+    for prop in ["Costs", "MPR Count", "Gene Node Count", "DTLReconGraph Computation Time"]:
         assert prop in properties_that_exist_in_file, "Required property '{0}' was not found in log file '{1}'!".format(prop, csv_file)
 
     DTL = properties_that_exist_in_file["Costs"][0]
@@ -244,8 +283,8 @@ def analyse_data(csv_file, given_properties, non_normalized, timings, plot, late
     mpr_list = map(lambda e: float(e), mpr_list)
     gene_count_list = properties_that_exist_in_file["Gene Node Count"]
     gene_count_list= map(lambda e: float(e), gene_count_list)
-    species_count_list = properties_that_exist_in_file["Species Node Count"]
-    species_count_list = map(lambda e: float(e), species_count_list)
+    #species_count_list = properties_that_exist_in_file["Species Node Count"]
+    #species_count_list = map(lambda e: float(e), species_count_list)
     DP_timings = properties_that_exist_in_file["DTLReconGraph Computation Time"]
     DP_timings = map(lambda e: float(e), DP_timings)
     prop_list_dict = {}
@@ -309,7 +348,7 @@ def analyse_data(csv_file, given_properties, non_normalized, timings, plot, late
 
         if "Zero Loss Diameter" in prop_list_dict:
             data_list = prop_list_dict["Zero Loss Diameter"]
-            plot_info_list += [("Zero Loss Diameter", gene_count_list, "Normalized Zero Loss Diameter", (0,1), data_list)]
+            plot_info_list += [("Zero Loss Diameter", gene_count_list, "Normalized Diameter\nWithout Losses", (0,1), data_list)]
 
         if "Median Count" in prop_list_dict:
             data_list = prop_list_dict["Median Count"]
@@ -319,22 +358,22 @@ def analyse_data(csv_file, given_properties, non_normalized, timings, plot, late
             data_list = prop_list_dict["Worst Median Distance"]
             plot_info_list += [("Worst Median Distance", gene_count_list, "Normalized Worst Median Distance", (0,2), data_list)]
 
-        if "Random Median Diameter Average" in prop_list_dict:
-            data_list = prop_list_dict["Random Median Diameter Average"]
-            plot_info_list += [("Random Median Diameter Average", prop_list_dict["Diameter"], "Average Normalized Median Distance", (0.5,1), data_list)]
+        if "Random Median Distance Average" in prop_list_dict:
+            data_list = prop_list_dict["Random Median Distance Average"]
+            plot_info_list += [("Random Median Distance Average", prop_list_dict["Diameter"], "Average Normalized\nMedian Distance", (0.5,1), data_list)]
 
-        if "Random Median Diameter Standard Deviation" in prop_list_dict:
-            data_list = prop_list_dict["Random Median Diameter Standard Deviation"]
-            plot_info_list += [("Random Median Diameter Standard Deviation", [1] * len(prop_list_dict["Diameter"]), "Random Median Diameter Standard Deviation", (0,4), data_list)]
+        if "Random Median Distance Standard Deviation" in prop_list_dict:
+            data_list = prop_list_dict["Random Median Distance Standard Deviation"]
+            plot_info_list += [("Random Median Distance Standard Deviation", [1] * len(prop_list_dict["Diameter"]), "Random Median Distance Standard Deviation", (0,4), data_list)]
 
         if "Unique Median Count" in prop_list_dict:
             data_list = prop_list_dict["Unique Median Count"]
             plot_info_list += [("Unique Median Count", mpr_list, "Unique Median Count (Normalized to MPR Count)", (0,1), data_list)]
 
-        if "Best Random Median Diameter" in prop_list_dict:
-            data_list = prop_list_dict["Best Random Median Diameter"]
-            plot_info_list += [("Best Random Median Diameter", prop_list_dict["Worst Median Distance"],
-                                "Best Random Median Diameter (Normalized to Worst Median)", (0.7, 1), data_list)]
+        if "Best Random Median Distance" in prop_list_dict:
+            data_list = prop_list_dict["Best Random Median Distance"]
+            plot_info_list += [("Best Random Median Distance", prop_list_dict["Worst Median Distance"],
+                                "Best Random Median Distance (Normalized to Worst Median)", (0.7, 1), data_list)]
 
         if "Median Diameter" in prop_list_dict:
             data_list = prop_list_dict["Median Diameter"]
@@ -364,7 +403,7 @@ def analyse_data(csv_file, given_properties, non_normalized, timings, plot, late
                       timing_data, total_timings, prop_name + " " + name_postfix, latex, color)
 
 
-def find_specific(csv_file="COG_Med_Diameter.csv"):
+def find_specific(csv_file="COG_Cluster_L.csv"):
     file_props, length, column_lookup = read_file(csv_file, False, False)
 
     mprs_1 = 0
@@ -376,15 +415,17 @@ def find_specific(csv_file="COG_Med_Diameter.csv"):
     mpr_not_med = 0
     mpr_lt = [0]*13
     mpr_gt = 0
-    mpr_diameter_neq_med_diameter = 0
+    mpr_diameter_neq_med_diameter = -1
+    mpr_diameter_eq_med_diameter_mpr_gt_1 = 0
 
     for i in range(0, length):
         mpr_count = file_props["MPR Count"][i]
         median = file_props["Median Count"][i]
         diameter = file_props["Diameter"][i]
-        median_diameter = file_props["Median Diameter"][i]
-        if diameter != median_diameter:
-            mpr_diameter_neq_med_diameter += 1
+        median_diameter = file_props["Random Median Distance Average"][i]
+        if int(mpr_count) > 1:
+            if int(float(median_diameter) / float(diameter)) == 1:
+                mpr_diameter_eq_med_diameter_mpr_gt_1 += 1
         if mpr_count == "1":
             mprs_1 += 1
         elif mpr_count == "2":
@@ -410,6 +451,7 @@ def find_specific(csv_file="COG_Med_Diameter.csv"):
     print "MPR count > 2 & MPR == median count: {0}".format(mprs_gt_2_not)
     print "MPR count > 2 & MPR != median count: {0}".format(mprs_gt_2_eq)
     print "Diameter != Median Diameter: {0}".format(mpr_diameter_neq_med_diameter)
+    print "Diameter == Random Median Diameter & MPR count > 1: {0}".format(mpr_diameter_eq_med_diameter_mpr_gt_1)
 
 
 def check_files(log, path):
@@ -468,7 +510,8 @@ def main():
     p.add_option("-D", "--no-diameter", dest="diameter", action="store_false", default=True,
                  help="don't plot the diameter")
     p.add_option("-l", "--use-latex", dest="use_latex", action="store_true", default=False,
-                 help="use LaTeX for plot text rendering (you must have LaTeX installed on your system!)")
+                 help="use LaTeX for plot text rendering (you must have LaTeX installed on your system!). This is intended"
+                      "for inclusion in papers.")
     p.add_option("-t", "--timings", dest="timings", action="store_true", default=False,
                  help="for every plot, include a complimentary timing plot")
     p.add_option("-n", "--non-normalized", dest="non_normalized", action="store_true", default=False,
@@ -509,9 +552,9 @@ def main():
     strip_mprs = int(options.strip_mprs)
     diameter = options.diameter
     median_count = options.median_count
-    worst_median = options.worst_median
     median_diameter = options.median_diameter
     average_median = options.average_median
+    worst_median = options.worst_median
     strip_equal = options.strip_equal
 
     # List of the names of the things we will try to plot
@@ -526,9 +569,9 @@ def main():
     if worst_median:
         plot_types += ["Worst Median Distance"]
     if average_median:
-        plot_types += ["Random Median Diameter Average",
-                       "Random Median Diameter Standard Deviation",
-                       "Best Random Median Diameter",
+        plot_types += ["Random Median Distance Average",
+                       #"Random Median Distance Standard Deviation",
+                       #"Best Random Median Distance",
                        "Unique Median Count"]
     if median_diameter:
         plot_types += ["Median Diameter"]

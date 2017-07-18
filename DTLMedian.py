@@ -27,6 +27,8 @@
 #       {'N':('C1','C2') ...}
 #
 
+# TODO: Make this datastructure reference complete
+
 import optparse
 from operator import itemgetter
 import numpy as np
@@ -73,6 +75,7 @@ def mapping_node_sort(ordered_gene_node_list, ordered_species_node_list, mapping
 
 def generate_scores(preorder_mapping_node_list, dtl_recon_graph, gene_root):
     """
+    Computes frequencies for every event
     :param preorder_mapping_node_list: A list of all mapping nodes in DTLReconGraph in double preorder
     :param dtl_recon_graph: The DTL reconciliation graph that we are scoring
     :param gene_root: The root of the gene tree
@@ -91,9 +94,11 @@ def generate_scores(preorder_mapping_node_list, dtl_recon_graph, gene_root):
     # Loop over all given minimum cost reconciliation roots
     for mapping_node in preorder_mapping_node_list:
         if mapping_node[0] == gene_root:
+
+            # This will also populate the counts dictionary with the number of MPRs each event and mapping node is in
             count += count_mprs(mapping_node, dtl_recon_graph, counts)
 
-    # Initialize the scores dict. This dict contains the frequency score of each
+    # Initialize the scores dict. This dict contains the frequency score of each mapping node
     scores = dict()
     for mapping_node in preorder_mapping_node_list:
         scores[mapping_node] = 0.0
@@ -102,6 +107,7 @@ def generate_scores(preorder_mapping_node_list, dtl_recon_graph, gene_root):
     # add scores to an unused entry than to check to see if they are (None, None) in the first place.
     scores[(None, None)] = 0.0
 
+    # TODO document key/value pairs
     # The scored graph is like the DTLReconGraph, except instead of individual events being in a list, they are the
     # keys of a dictionary where the values are the frequency scores of those events.
     event_scores = {}
@@ -111,8 +117,10 @@ def generate_scores(preorder_mapping_node_list, dtl_recon_graph, gene_root):
         # If we are at the root of the gene tree, then we need to initialize the score entry
         if mapping_node[0] == gene_root:
             scores[mapping_node] = counts[mapping_node]
+        # This fills up the event scores dictionary
         calculate_scores_for_children(mapping_node, dtl_recon_graph, event_scores, scores, counts)
 
+    #TODO: Do we still need this?
     for mapping_node in preorder_mapping_node_list:
         scores[mapping_node] = scores[mapping_node] / float(count)
 
@@ -128,7 +136,7 @@ def count_mprs(mapping_node, dtl_recon_graph, counts):
     :param counts: a dictionary representing the running memo that is passed
     down recursive calls of this function. At first it is just an empty
     dictionary (see above function), but as it gets passed down calls, it collects
-    keys of mapping nodes and values of MPR counts. This memo improves runtime
+    keys of mapping nodes or event nodes and values of MPR counts. This memo improves runtime
     of the algorithm
     :return: the number of MPRs spawned below the given mapping node in the graph
     """
@@ -162,36 +170,38 @@ def count_mprs(mapping_node, dtl_recon_graph, counts):
     return count
 
 
-def calculate_scores_for_children(mapping_node, dtl_recon_graph, scored_graph, scores, counts):
+def calculate_scores_for_children(mapping_node, dtl_recon_graph, event_scores, scores, counts):
     """
     This function calculates the frequency score for every mapping node that is a child of an event node that is a
     child of the given mapping node, and stores them in scoredGraph.
     :param mapping_node: The mapping node that is the parent of the two scores we will compute
     :param dtl_recon_graph: The DTL reconciliation graph (see data structure quick reference at top of file)
-    :param scored_graph: The scored DTL reconciliation graph (see data structure quick reference at top of file)
+    :param event_scores: The scored DTL reconciliation graph (see data structure quick reference at top of file)
     :param scores: The score for each mapping node (which will ultimately be thrown away) that this function helps
     build up
-    :param counts: The counts generated in countMPRs
+    :param counts: The counts generated in countMPRs (from the bottom-up)
     :return: Nothing, but scoredGraph is built up.
     """
+    #TODO: assure that documentation is clear that counts are built on the way up and scores on the way down
+    #TODO: change neame of scores.
+    assert scores[mapping_node] != 0, "Sorting error! Ensure that parents are calculated before children"
 
-    assert scores[mapping_node] != 0
-
-    # This multiplier is arcane magic that we all immediately forgot how it works, but it gets the job done.
+    # This multiplier results in  counts[event_node] / counts[mapping_node] for each event node, which is the % of
+    # this mapping node's scores (scores[mapping_node]) that it gives to each event node.
     multiplier = float(scores[mapping_node]) / counts[mapping_node]
 
     # Iterate over every event
     for event_node in dtl_recon_graph[mapping_node]:
 
-        scored_graph[event_node] = multiplier * counts[event_node]
+        event_scores[event_node] = multiplier * counts[event_node]
 
         # Save the children produced by the current event
         mapping_child1 = event_node[1]
         mapping_child2 = event_node[2]
-        scores[mapping_child1] += scored_graph[event_node]
-        scores[mapping_child2] += scored_graph[event_node]
+        scores[mapping_child1] += event_scores[event_node]
+        scores[mapping_child2] += event_scores[event_node]
 
-
+# TODO: Start code review here!
 def compute_median(dtl_recon_graph, event_scores, postorder_mapping_nodes, mpr_roots):
     """
     :param dtl_recon_graph: A dictionary representing a DTL Recon Graph.
@@ -455,6 +465,7 @@ def main():
                                                                                                       "hTop")
 
             # Get a list of the mapping nodes in preorder
+            # TODO: change the variable names of this call to not contradict the saved variable name, and elsewhere
             preorder_mapping_node_list = mapping_node_sort(postorder_gene_tree, postorder_species_tree,
                                                            dtl_recon_graph.keys())
 
