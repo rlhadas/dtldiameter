@@ -70,10 +70,10 @@
 #       A incomparable to B:'in'
 #       A is equal to B:    'eq'
 #
-#   DTL Reconciliation graph (after clean_graph has been run):
+#   DTL Reconciliation graph:
 #       { mapping_node: [event1, event2, ...] ...}
 #
-#   Event node (after clean_graph has been run):
+#   Event node:
 #       ('type', child_mapping_node1, child_mapping_node2)
 #
 #   Mapping node:
@@ -564,15 +564,5 @@ def print_table_nicely(table, deliminator, name="\t", dtype="map"):
                 line += line_color
         print line
     print "\033[0m"  # Return to default color
-
-# TODO: Check if we need this function
-def clean_graph(dtl_recon_graph, gene_tree_root):
-    """Cleans up the graph created by DTLReconGraph.py by turning removing scores from event lists
-     :param dtl_recon_graph:    The DTL reconciliation graph that we wish to clean
-     :param gene_tree_root:     The root of the gene tree of said graph
-     :return:                   Nothing, but modifies dtl_recon_graph"""
-    for key in dtl_recon_graph:
-        # Get rid of all of the random numbers in the event list
-        dtl_recon_graph[key] = filter(lambda e: not isinstance(e, (float, int)), dtl_recon_graph[key])
 
 

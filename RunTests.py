@@ -256,9 +256,6 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
 
     species_tree, species_tree_root, species_node_count = Diameter.reformat_tree(edge_species_tree, "hTop")
 
-    # The DTL reconciliation graph as provided by DTLReconGraph has some extraneous numbers. We remove those here.
-    Diameter.clean_graph(dtl_recon_graph, gene_tree_root)
-
     # And record the amount of time DTLReconGraph + cleaning up the graph took
     DTLReconGraph_time_taken = time.clock() - start_time
 

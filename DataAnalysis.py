@@ -56,32 +56,41 @@ def read_file(csv_file, mpr_strip=0, mpr_equals_median_strip=False):
     name_to_row = {v: k for k, v in column.iteritems()}
     return properties, length, name_to_row
 
-def set_label(axis, label, letter, latex):
+def set_xlabel(axis, label, letter, latex):
     if latex:
-        axis.set_xlabel(label+"\n"r"{\fontsize{40pt}{3em}\selectfont{}("+letter+")}", linespacing=2.5,
-                                 labelpad=20)
+        axis.set_xlabel(label+"\n"r"{\fontsize{7pt}{1em}\selectfont{}("+letter+r")}",
+                        linespacing=3, labelpad=3)
     else:
         axis.set_xlabel(label)
+
+
+def set_ylabel(axis, label, latex):
+    axis.set_ylabel(label)
 
 def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter_list, diameter_name,
               normalized_diameter, normalized_diameter_name, mpr_list, DP_timings,
               diameter_timings, total_timings, name, latex, color):
-    size = 4
+    size = 0.6
+    linewidth = 0
+    histcolor = '0.15'
     if color == None:
-        color = 'black'
+        color = histcolor
     y_range = float(y_limits[1] - y_limits[0])
     y_padding = y_range * 0.05
     diameter_ylim_b = y_limits[0] - y_padding
     diameter_ylim_t = y_limits[1] + y_padding
 
-    width = 18
-    height = 7
+    two_column_width = 6.9  # https://www.computer.org/cms/peerreview/docs/transactions_art_guide.pdf
+    one_column_width = 3.39
+
+    width = two_column_width
+    height = width / (18.0/7)
 
     gene_xlim = max(gene_count_list) * 1.05
 
     if non_normalized:
 
-        log_y = True
+        log_y = False
         y_max = max(diameter_list)
         y_min = min(diameter_list)
         padding = (y_max - y_min) * 0.05
@@ -93,7 +102,7 @@ def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter
         fig, ax = plt.subplots(ncols=3, nrows=1)
 
         if latex:
-            fig.subplots_adjust(bottom=0.2)
+            fig.subplots_adjust(bottom=0.3)
             fig.set_size_inches(width, height)
 
         fig.canvas.set_window_title("{0} Plots {1}".format(file, name))
@@ -101,29 +110,29 @@ def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter
         diameter = ax[1]
         diameter_hist = ax[0]
         mpr_diameter = ax[2]
-        ax[0].set_ylabel(diameter_name)
+        set_ylabel(ax[0], diameter_name, latex)
 
-        diameter.scatter(gene_count_list, diameter_list, c=color, s=size)
-        set_label(diameter, "Gene Tree Size", "b", latex)
+        diameter.scatter(gene_count_list, diameter_list, c=color, s=size, linewidth=linewidth)
+        set_xlabel(diameter, "Gene Tree Size", "b", latex)
         diameter.set_xlim(0, gene_xlim)
         if not latex:
             diameter.set_title("{0} vs. Gene Tree Size".format(diameter_name))
 
 
-        bins = 100
+        bins = 50
         if log_y:
             bins = numpy.logspace(numpy.log10(y_bottom), numpy.log10(y_top), bins)
         else:
             diameter_hist.set_ylim(y_bottom, y_top)
-        diameter_hist.hist(diameter_list, orientation='horizontal', bins=bins, color='grey')
+        diameter_hist.hist(diameter_list, orientation='horizontal', bins=bins, color=histcolor, linewidth=linewidth)
         # diameter_hist.set_ylabel("Diameter")
-        set_label(diameter_hist, "Number of Gene Families", "a", latex)
+        set_xlabel(diameter_hist, "Number of Gene Families", "a", latex)
         if not latex:
             diameter_hist.set_title(diameter_name)
 
 
-        mpr_diameter.scatter(mpr_list, diameter_list, c=color, s=size)
-        set_label(mpr_diameter, "MPR Count", "c", latex)
+        mpr_diameter.scatter(mpr_list, diameter_list, c=color, s=size, linewidth=linewidth)
+        set_xlabel(mpr_diameter, "MPR Count", "c", latex)
         if not latex:
             mpr_diameter.set_title("{0} vs. MPR Count".format(diameter_name))
         mpr_diameter.set_xscale('log')
@@ -135,55 +144,57 @@ def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter
             if log_y:
                 a.set_yscale('log')
             if latex:
-                a.yaxis.label.set_size(35)
-                a.xaxis.label.set_size(35)
+                a.yaxis.label.set_size(8)
+                a.xaxis.label.set_size(8)
+            a.tick_params(axis='both', which='major', labelsize=6)
             a.grid()
 
         mpr_diameter.set_ylim(y_bottom, y_top)
         diameter.set_ylim(y_bottom, y_top)
-        fig.tight_layout()
+        #fig.tight_layout()
 
     fig, ax = plt.subplots(ncols=3, nrows=1)
 
     if latex:
-        fig.subplots_adjust(bottom=0.2)
+        fig.subplots_adjust(bottom=0.3)
         fig.set_size_inches(width, height)
 
     fig.canvas.set_window_title("{0} Normalized Plots {1}".format(file, name))
     norm_diameter_hist = ax[0]
     norm_mpr_diameter = ax[2]
     norm_diameter = ax[1]
-    ax[0].set_ylabel(normalized_diameter_name)
+    set_ylabel(ax[0], normalized_diameter_name, latex)
 
-    norm_diameter.scatter(gene_count_list, normalized_diameter, c=color, s=size)
-    set_label(norm_diameter, "Gene Tree Size", "b", latex)
+    norm_diameter.scatter(gene_count_list, normalized_diameter, c=color, s=size, linewidth=linewidth)
+    set_xlabel(norm_diameter, "Gene Tree Size", "b", latex)
     norm_diameter.set_xlim(0, gene_xlim)
     # norm_diameter.set_ylabel("Diameter (normalized to gene node count)")
     norm_diameter.set_ylim(diameter_ylim_b, diameter_ylim_t)
     if not latex:
         norm_diameter.set_title("{0} vs. Gene Tree Size".format(normalized_diameter_name))
 
-    norm_diameter_hist.hist(normalized_diameter, 100, orientation='horizontal', color='grey')
+    norm_diameter_hist.hist(normalized_diameter, 50, orientation='horizontal', color=histcolor, linewidth=linewidth, rwidth=1)
     # norm_diameter_hist.set_ylabel("Diameter (normalized to gene node count)")
-    set_label(norm_diameter_hist, "Number of Gene Families", "a", latex)
+    set_xlabel(norm_diameter_hist, "Number of Gene Families", "a", latex)
     if not latex:
         norm_diameter_hist.set_title("{0} Counts".format(normalized_diameter_name))
     norm_diameter_hist.set_ylim(diameter_ylim_b, diameter_ylim_t)
 
-    norm_mpr_diameter.scatter(mpr_list, normalized_diameter, c=color, s=size)
+    norm_mpr_diameter.scatter(mpr_list, normalized_diameter, c=color, s=size, linewidth=linewidth)
     norm_mpr_diameter.set_ylim(diameter_ylim_b, diameter_ylim_t)
-    set_label(norm_mpr_diameter, "MPR Count", "c", latex)
+    set_xlabel(norm_mpr_diameter, "MPR Count", "c", latex)
     if not latex:
         norm_mpr_diameter.set_title("{0} vs. MPR Count".format(normalized_diameter_name))
     norm_mpr_diameter.set_xscale('log')
 
     for a in ax:
         if latex:
-            a.yaxis.label.set_size(35)
-            a.xaxis.label.set_size(35)
+            a.yaxis.label.set_size(8)
+            a.xaxis.label.set_size(8)
+            a.tick_params(axis='both', which='major', labelsize=6)
         a.grid()
 
-    fig.tight_layout()
+    #fig.tight_layout()
     if latex:
         # Kinda hacky way of reducing the number of ticks. (also changes log spacing, so we remove extra)
         norm_mpr_diameter.set_xticks(norm_mpr_diameter.get_xticks()[1:-1:2])
@@ -194,30 +205,30 @@ def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter
         fig, ax = plt.subplots(ncols=3, nrows=1)
 
         if latex:
-            fig.subplots_adjust(bottom=0.2)
+            fig.subplots_adjust(bottom=0.3)
             fig.set_size_inches(width, height)
 
         fig.canvas.set_window_title("{0} Running Times {1}".format(file, name))
         DP_time = ax[0]
         diameter_time = ax[1]
         total_time = ax[2]
-        DP_time.scatter(gene_count_list, DP_timings, c=color, s=size)
-        set_label(DP_time, "Gene Tree Size", "a", latex)
-        DP_time.set_ylabel("Time (seconds)")
+        DP_time.scatter(gene_count_list, DP_timings, c=color, s=size, linewidth=linewidth)
+        set_xlabel(DP_time, "Gene Tree Size", "a", latex)
+        set_ylabel(DP_time, "Time (seconds)", latex)
         if not latex:
             DP_time.set_title("Computing Reconciliation Graph")
         DP_time.set_yscale('log')
         DP_time.set_xscale('log')
-        diameter_time.scatter(gene_count_list, diameter_timings, c=color, s=size)
-        set_label(diameter_time, "Gene Tree Size", "b", latex)
+        diameter_time.scatter(gene_count_list, diameter_timings, c=color, s=size, linewidth=linewidth)
+        set_xlabel(diameter_time, "Gene Tree Size", "b", latex)
         #diameter_time.set_ylabel("Time (seconds)")
         if not latex:
             diameter_time.set_title("Computing {0}".format(diameter_name))
         diameter_time.set_yscale('log')
-        diameter_time.set_ylim(0.001,10**4)
+        diameter_time.set_ylim(0.01,10**2)
         diameter_time.set_xscale('log')
-        total_time.scatter(gene_count_list, total_timings, c=color, s=size)
-        set_label(total_time, "Gene Tree Size", "c", latex)
+        total_time.scatter(gene_count_list, total_timings, c=color, s=size, linewidth=linewidth)
+        set_xlabel(total_time, "Gene Tree Size", "c", latex)
         #total_time.set_ylabel("Time (seconds)")
         if not latex:
             total_time.set_title("Total Running Time")
@@ -226,11 +237,11 @@ def make_plot(file, y_limits, non_normalized, timings, gene_count_list, diameter
 
         for a in ax:
             if latex:
-                a.yaxis.label.set_size(35)
-                a.xaxis.label.set_size(35)
+                a.yaxis.label.set_size(8)
+                a.xaxis.label.set_size(8)
             a.grid()
 
-        fig.tight_layout()
+        #fig.tight_layout()
 
 
 
@@ -260,7 +271,7 @@ def analyse_data(csv_file, given_properties, non_normalized, timings, plot, late
         plt.rc('text', usetex=latex)
         if latex:
             #plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': '22'})
-            plt.rc('font', **{'family': 'sans-serif', 'size': '22'})
+            plt.rc('font', **{'family': 'sans-serif', 'size': '8'})
             plt.rcParams['text.latex.preamble'] = [
                 r"\usepackage{amsmath}",
                 r'\usepackage{siunitx}',  # i need upright \micro symbols, but you need...
@@ -301,7 +312,7 @@ def analyse_data(csv_file, given_properties, non_normalized, timings, plot, late
     for property in given_properties:
         prop_list_dict[property] = properties_that_exist_in_file[property]
         # This is kind of janky. We only turn properties with these names into floats
-        if "Diameter" in property or "Count" in property or "Number" in property:
+        if "Diameter" in property or "Count" in property or "Number" in property or "Distance" in property:
             prop_list_dict[property] = map(lambda e: float(e), prop_list_dict[property])
             if timings:
                 timing_list_dict[property + " Computation Time"] = properties_that_exist_in_file[property + " Computation Time"]
@@ -376,7 +387,7 @@ def analyse_data(csv_file, given_properties, non_normalized, timings, plot, late
 
         if "Unique Median Count" in prop_list_dict:
             data_list = prop_list_dict["Unique Median Count"]
-            plot_info_list += [("Unique Median Count", mpr_list, "Unique Median Count (Normalized to MPR Count)", (0,1), data_list)]
+            plot_info_list += [("Unique Median Count", mpr_list, "Unique Median Count\n(Normalized to MPR Count)", (0,1), data_list)]
 
         if "Best Random Median Distance" in prop_list_dict:
             data_list = prop_list_dict["Best Random Median Distance"]
