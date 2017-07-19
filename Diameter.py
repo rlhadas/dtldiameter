@@ -223,6 +223,7 @@ def is_exit_event(event):
     """
     return event[0] not in ('C', 'L')
 
+
 def calculate_score_both_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b): # TODO
     """This function computes the score of a 'double exit', where both mapping nodes exit immediately.
     :param zero_loss:           A boolean value representing whether loss events should count for distance
@@ -494,7 +495,6 @@ def diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph_
                 enter_table[u][uA][uB] = score
                 if debug:
                     print "{0} -{1}-> {2}, Double-equal\t{3}\tScore:{4}".format(uA,ancestry,uB,score_both_exit,score)
-
 
         if debug:
             print_table_nicely(enter_table[u], ", ", "EnterTable({0})".format(u))
