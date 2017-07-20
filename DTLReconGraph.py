@@ -26,11 +26,12 @@
 
 # All necessary import statements
 import sys
-from numpy import median as md
-from numpy import mean
-import newickFormatReader
-import Greedy
 
+from numpy import mean
+from numpy import median as md
+
+import Greedy
+import newickFormatReader
 
 Infinity = float('inf')
 
