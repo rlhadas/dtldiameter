@@ -17,6 +17,8 @@ import re
 import traceback
 import optparse
 
+import ReconGraphFileInterchange
+
 
 def write_to_csv(csv_file, costs, filename, mpr_count, gene_node_count, species_node_count,
                  DTLReconGraph_time_taken, properties):
@@ -54,7 +56,7 @@ def write_to_csv(csv_file, costs, filename, mpr_count, gene_node_count, species_
                     header += ["{0} Computation Time".format(property[0])]
             writer.writerow(header)
         numbers = [filename, time.strftime("%c"), costs, mpr_count, gene_node_count, species_node_count,
-                         DTLReconGraph_time_taken]
+                   DTLReconGraph_time_taken]
         for property in properties:
             numbers += [property[1]]
 
@@ -65,7 +67,6 @@ def write_to_csv(csv_file, costs, filename, mpr_count, gene_node_count, species_
 
 
 def find_median_and_count(gene_tree, gene_tree_root, species_tree, dtl_recon_graph, best_roots):
-
     """
     Finds the entire median reconciliation graph, and counts the number of reconciliations.
     :param gene_tree:       The gene tree, in vertex format
@@ -90,7 +91,6 @@ def find_median_and_count(gene_tree, gene_tree_root, species_tree, dtl_recon_gra
 
 
 def find_worst_median_distance(species_tree, gene_tree, gene_tree_root, dtl_recon_graph, median_reconciliation, debug):
-
     """
     Finds the furthest distance from a median MPR to any other MPR.
     :param gene_tree:               The gene tree, in vertex format
@@ -107,8 +107,8 @@ def find_worst_median_distance(species_tree, gene_tree, gene_tree_root, dtl_reco
     worst_median_distance_time_taken = time.clock() - start_time
     return [("Worst Median Distance", worst_median_distance, worst_median_distance_time_taken)]
 
-def find_median_diameter(species_tree, gene_tree, gene_tree_root, median_reconciliation, debug):
 
+def find_median_diameter(species_tree, gene_tree, gene_tree_root, median_reconciliation, debug):
     """
     Finds the diameter of the medioid space
     :param gene_tree:               The gene tree, in vertex format
@@ -151,7 +151,6 @@ def find_median_cluster(filename, log, costs, gene_tree, gene_tree_root, species
     _, file_log_name = os.path.split(filename)
     file_log_name, _ = os.path.splitext(file_log_name)
     file_log_path = os.path.splitext(log)[0] + "/" + file_log_name + ".csv"
-
 
     preorder_mapping_node_list = DTLMedian.mapping_node_sort(gene_tree, species_tree, dtl_recon_graph.keys())
     scoresDict = DTLMedian.generate_scores(list(reversed(preorder_mapping_node_list)), dtl_recon_graph,
@@ -213,9 +212,9 @@ def find_median_cluster(filename, log, costs, gene_tree, gene_tree_root, species
             ("Unique Median Count", len(old_medians))]
 
 
-def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbose=True, zero_loss=False, median=False,
-                                 worst_median=False, median_cluster=0, median_diameter=False):
-
+def run_single_calculation(filename, D, T, L, log=None, debug=False, verbose=True, zero_loss=False, median=False,
+                           worst_median=False, median_cluster=0, median_diameter=False, save_graph=False,
+                           save_median_graph=False):
     """This function computes the diameter of space of MPRs in a DTL reconciliation problem,
      as measured by the symmetric set distance between the events of the two reconciliations of the pair
       that has the highest such difference.
@@ -234,7 +233,9 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
       :param median_cluster: The number of random medians we should find the distance to furthest MPR is (or 0 for not
                               doing that.
       :param median_diameter: Whether we should calculate the diameter of median-space.
-      :return:              Nothing, but we output results to a csv file."""
+      :param save_graph:    Whether we should save the dtl recon graph as a SIF file to be viewed (or possibly
+                             reimported)
+      :return:              Nothing, but we output results to a csv file, or the screen"""
 
     # These statements check to make sure that all arguments were entered correctly.
     assert isinstance(log, (str, unicode)) or log is None
@@ -248,7 +249,8 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     start_time = time.clock()
 
     # Get everything we need from DTLReconGraph
-    edge_species_tree, edge_gene_tree, dtl_recon_graph, mpr_count, best_roots = DTLReconGraph.reconcile(filename, D, T, L)
+    edge_species_tree, edge_gene_tree, dtl_recon_graph, mpr_count, best_roots = DTLReconGraph.reconcile(filename, D, T,
+                                                                                                        L)
 
     # The gene tree needs to be in node format, not edge format, so we find that now.
     # (This also puts the gene_tree into postorder, as an ordered dict)
@@ -262,13 +264,22 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     if verbose:
         print "Reconciliation Graph Made in \033[33m\033[1m{0} seconds\033[0m".format(DTLReconGraph_time_taken)
 
+    if save_graph:
+        file_graph_name = os.path.split(filename)[1]
+        file_graph_name = "graphs/"+ os.path.splitext(file_graph_name)[0] + "_graph.sif"
+        ReconGraphFileInterchange.save_recon_graph(dtl_recon_graph, file_graph_name)
+        test_graph = ReconGraphFileInterchange.load_recon_graph(file_graph_name)
+        if dtl_recon_graph != test_graph:
+            print "MPR DTL reconciliation graph was saved improperly!"
+
     # This list will contain all of the results we want recorded, as tuples.
     results = []
 
     start_time = time.clock()
 
     # Now we draw the rest of the owl
-    diameter = Diameter.diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph, dtl_recon_graph, debug, False)
+    diameter = Diameter.diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph, dtl_recon_graph,
+                                           debug, False)
 
     # And record how long it took to compute the diameter.
     diameter_time_taken = time.clock() - start_time
@@ -278,27 +289,37 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     # stored as tuples in the results list, which is passed to the write_to_csv function.
     if zero_loss:
         start_time = time.clock()
-        zl_diameter = Diameter.diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph, dtl_recon_graph, debug, True)
-        zl_diameter_time_taken = time.clock()-start_time
+        zl_diameter = Diameter.diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph,
+                                                  dtl_recon_graph, debug, True)
+        zl_diameter_time_taken = time.clock() - start_time
         results += [("Zero Loss Diameter", zl_diameter, zl_diameter_time_taken)]
 
     median_reconciliation = {}
-    if median or worst_median or median_diameter:
-        new_result, median_reconciliation = find_median_and_count(gene_tree, gene_tree_root, species_tree, dtl_recon_graph, best_roots)
+    if median or worst_median or median_diameter or save_median_graph:
+        new_result, median_reconciliation = find_median_and_count(gene_tree, gene_tree_root, species_tree,
+                                                                  dtl_recon_graph, best_roots)
         results += new_result
+
+    if save_median_graph:
+        file_graph_name = os.path.split(filename)[1]
+        file_graph_name = "graphs/" + os.path.splitext(file_graph_name)[0] + "_med_graph.sif"
+        ReconGraphFileInterchange.save_recon_graph(median_reconciliation, file_graph_name)
+        test_graph = ReconGraphFileInterchange.load_recon_graph(file_graph_name)
+        if median_reconciliation != test_graph:
+            print "Median DTL reconciliation graph was saved improperly!"
     if median_diameter:
         assert median_reconciliation != {}, "Can't compute median-space diameter without knowing the median reconciliation!"
         results += find_median_diameter(species_tree, gene_tree, gene_tree_root, median_reconciliation, debug)
     if worst_median:
         assert median_reconciliation != {}, "Can't compute worst median without knowing the median reconciliation!"
-        results += find_worst_median_distance(species_tree, gene_tree, gene_tree_root, dtl_recon_graph, median_reconciliation,
-                                   debug)
+        results += find_worst_median_distance(species_tree, gene_tree, gene_tree_root, dtl_recon_graph,
+                                              median_reconciliation,
+                                              debug)
 
     if median_cluster > 0:
         costs = "D: {0} T: {1} L: {2}".format(D, T, L)
         results += find_median_cluster(filename, log, costs, gene_tree, gene_tree_root, species_tree, dtl_recon_graph,
-                                best_roots, median_cluster)
-
+                                       best_roots, median_cluster)
 
     if verbose:
         print "Results:"
@@ -308,14 +329,17 @@ def calculate_diameter_from_file(filename, D, T, L, log=None, debug=False, verbo
     # Now, we write our results to a csv file.
     if log is not None:
         costs = "D: {0} T: {1} L: {2}".format(D, T, L)
-        write_to_csv(log + ".csv", costs, filename, mpr_count, gene_node_count, species_node_count, DTLReconGraph_time_taken,
+        write_to_csv(log + ".csv", costs, filename, mpr_count, gene_node_count, species_node_count,
+                     DTLReconGraph_time_taken,
                      results)
 
     # And we're done.
     return
 
 
-def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, debug=False, verbose=True, loud=False, zero_loss=False, median_count=False, worst_median=False, cluster=0, median_diameter=False):
+def run_iterative_calculations(file_pattern, start, end, d, t, l, log=None, debug=False, verbose=True, loud=False,
+                               zero_loss=False, median_count=False, worst_median=False, cluster=0,
+                               median_diameter=False, save_graph=False, save_median_graph=False):
     """Iterates over a lot of input files and finds the diameter of all of them.
     :param file_pattern: A string contains the name of the files to be used, with the counting number replaced with #'s
     :param start:       Numbered file to start on
@@ -330,13 +354,15 @@ def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, d
     match = re.match("([^#]*)(#+)([^#]*)", file_pattern)
     if not match:
         print "Filepath '" + file_pattern + "' not understood. Please enter the path to your files, with repeated hash marks" \
-                                       "(#'s) in place of sequential numbering."
+                                            "(#'s) in place of sequential numbering."
         return
     fill = len(match.group(2))
-    if fill < len(str(end-1)) or fill < len(str(start)):
-        print "Starting or ending number is larger than '{1}' supports ({0})!".format((10 ** fill) -1, file_pattern)
+    if fill < len(str(end - 1)) or fill < len(str(start)):
+        print "Starting or ending number is larger than '{1}' supports ({0})!".format((10 ** fill) - 1, file_pattern)
         return
-    print "Running {4} sequential jobs on files '{3}' with costs D = {0}, T = {1}, and L = {2}".format(d, t, l, file_pattern, end - start)
+    print "Running {4} sequential jobs on files '{3}' with costs D = {0}, T = {1}, and L = {2}".format(d, t, l,
+                                                                                                       file_pattern,
+                                                                                                       end - start)
     for i in range(start, end):
         cur_file = "{0}{1}{2}".format(match.group(1), str(i).zfill(fill), match.group(3))
         if not os.path.exists(cur_file):
@@ -346,7 +372,8 @@ def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, d
         print "Reconciling {0}".format(cur_file)
 
         try:
-            calculate_diameter_from_file(cur_file, d, t, l, log, debug, verbose, zero_loss, median_count, worst_median, cluster, median_diameter)
+            run_single_calculation(cur_file, d, t, l, log, debug, verbose, zero_loss, median_count, worst_median,
+                                   cluster, median_diameter, save_graph, save_median_graph)
         except (KeyboardInterrupt, SystemExit):
             print "\13Thank you for playing Wing Commander!"
             sys.exit()
@@ -356,9 +383,8 @@ def repeatedly_calculate_diameter(file_pattern, start, end, d, t, l, log=None, d
                 print "\07"
             if verbose:
                 print traceback.print_exc(sys.exc_traceback)
-            print "Could not reconcile file '{0}'. Continuing, but please make sure the file was formatted correctly!"\
+            print "Could not reconcile file '{0}'. Continuing, but please make sure the file was formatted correctly!" \
                 .format(cur_file)
-
 
 
 def main():
@@ -375,8 +401,9 @@ def main():
                  metavar="MIN MAX", type=int)
     p.add_option("-L", "--loud", dest="loud", action="store_true", default=False,
                  help="print the bell character after each failed file when using the iterate flag")
-    p.add_option("-d", "--debug", dest="debug", action="store_true", default=False, help= "prints out every DP table with size less"
-                                                                           "than 30x30")
+    p.add_option("-d", "--debug", dest="debug", action="store_true", default=False,
+                 help="prints out every DP table with size less"
+                      "than 30x30")
     p.add_option("-z", "--zero-loss", dest="zero_loss", action="store_true", default=False,
                  help="calculate the zero-loss diameter of the file")
     p.add_option("-m", "--median-count", dest="median_count", action="store_true", default=False,
@@ -385,6 +412,10 @@ def main():
                  help="find the diameter of the median reconciliation space")
     p.add_option("-w", "--worst-median", dest="worst_median", action="store_true", default=False,
                  help="find the largest possible distance from a median reconciliation to an MPR")
+    p.add_option("-s", "--save-graph", dest="save_graph", action="store_true", default=False,
+                 help="save the DTL reconciliation graph to an SIF file after it has been made.")
+    p.add_option("-S", "--save-median-graph", dest="save_median_graph", action="store_true", default=False,
+                 help="save the median DTL reconciliation graph to an SIF file after it has been made.")
     p.add_option("-c", "--cluster", dest="cluster", action="store", default=0,
                  help="find the distances to the furthest mpr of the specified number of random single medians (requires logging)")
 
@@ -403,10 +434,11 @@ def main():
     zero_loss = options.zero_loss
     worst_median = options.worst_median
     median_diameter = options.median_diameter
+    save_graph = options.save_graph
+    save_median_graph = options.save_median_graph
 
     # Medians must be calculated if we use worst_median, so just add this in.
     median_count = options.median_count or worst_median
-
 
     if cluster > 0 and not log:
         p.error("you must specify a log file when doing cluster tests!")
@@ -414,14 +446,19 @@ def main():
         cluster_log_folder = os.path.splitext(log)[0]
         if not os.path.exists(cluster_log_folder):
             os.makedirs(cluster_log_folder)
+    if save_graph or save_median_graph:
+        if not os.path.exists("graphs"):
+            os.makedirs("graphs")
     if not (log or debug or verbose):
         p.error("some form of output must be specified! (-l or -d must be used when -q is used)")
     elif options.count is not None:
         rep = options.count
-        #TODO rename to better
-        repeatedly_calculate_diameter(filename, rep[0], rep[1], d, t, l, log, debug, verbose, loud, zero_loss, median_count, worst_median, cluster, median_diameter)
+        run_iterative_calculations(filename, rep[0], rep[1], d, t, l, log, debug, verbose, loud, zero_loss,
+                                   median_count, worst_median, cluster, median_diameter, save_graph, save_median_graph)
     else:
-        calculate_diameter_from_file(filename, d, t, l, log, debug, verbose, zero_loss, median_count, worst_median, cluster, median_diameter)
+        run_single_calculation(filename, d, t, l, log, debug, verbose, zero_loss, median_count, worst_median,
+                               cluster, median_diameter, save_graph, save_median_graph)
+
 
 if __name__ == "__main__":
     main()
