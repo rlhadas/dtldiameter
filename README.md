@@ -73,6 +73,11 @@ Some flags add extra computations that are output to the screen or logged to a c
 
 * `-c` or `--cluster` takes one argument, a number. It will select that many median reconciliations at random, and find the distance from each one to the furthest MPR. Usage of the log (`-l`) flag is mandatory when using this mode as it will generate a log file for each file that is calculated, in addton to recording the average, mean, best, and worst distances computed, and the total number of unique medians seen, in the regular logfile.
 
+There is also limited capability to output reconciliation graphs to SIF files, for viewing in external tools, like Cytoscape. These are controlled by two flags:
+
+* `-s` or `--save-graph` saves the entire MPR DTL reconciliation graph to an SIF file in the folder `graphs/`.
+
+* `-S` or `--save-median-graph` saves the median-space DTL reconciliation graph to an SIF file in the folder `graphs/`.
 
 
 #### Examples
