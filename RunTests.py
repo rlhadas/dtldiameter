@@ -114,7 +114,7 @@ def find_median_diameter(species_tree, gene_tree, gene_tree_root, median_reconci
     :param gene_tree:               The gene tree, in vertex format
     :param gene_tree_root:          The vertex root of the gene tree
     :param species_tree:            The species tree, in vertex format
-    :param dtl_recon_graph:         The entire DTL mpr reconciliation graph
+    :param median_reconciliation:   The entire DTL median reconciliation graph
     :param median_reconciliation:   A DTL reconciliation graph containing every possible median
     :param debug:                   Whether or not to print debug tables
     :return:                        An entry to be added to the results list containing the Worst Median Distance
