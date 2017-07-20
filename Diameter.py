@@ -6,7 +6,7 @@
 #
 #       This program is based off of an algorithm written by Jordan Haack. There is a paper that describes this
 #   algorithm more thoroughly than can be expressed in source code comments. The paper title is "Computing the Diameter
-#   of the Space of Maximum Parsimony Reconciliations in the Duplication-Transfer-Loss Model". #TODO add more info
+#   of the Space of Maximum Parsimony Reconciliations in the Duplication-Transfer-Loss Model".
 
 # 1. ON TREE REPRESENTATION FORMATS:
 #
@@ -93,7 +93,6 @@ from collections import OrderedDict
 from itertools import product
 
 
-
 def reformat_tree(tree, root):
     """A recursive function that changes the format of a (species or gene) tree from edge to vertex, as described
     above. It returns the tree (in postorder), the root of the tree, and the number of nodes in the tree. The base
@@ -157,7 +156,7 @@ def calculate_ancestral_table(species_tree):
     for info on what certain strings mean). It creates these dictionaries
     by traversing the tree.
     """
-    #TODO Improve readability
+
     # Initialize the ancestral table which we will be returning
     ancestral_table = dict()
 
@@ -224,7 +223,7 @@ def is_exit_event(event):
     return event[0] not in ('C', 'L')
 
 
-def calculate_score_both_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b): # TODO
+def calculate_score_both_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b):
     """This function computes the score of a 'double exit', where both mapping nodes exit immediately.
     :param zero_loss:           A boolean value representing whether loss events should count for distance
     :param enter_table:         The enter table, which we use here.
@@ -269,9 +268,9 @@ def calculate_score_both_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_reco
                 # supersede this one
 
                 score_both_exit = max(score_both_exit,
-                                        enter_table[child1][u1A][u1B] + enter_table[child2][u2A][u2B] +
-                                        (cost(e_a, zero_loss) + cost(e_b, zero_loss) if e_a != e_b
-                                           else intersect_cost(0)))
+                                      enter_table[child1][u1A][u1B] + enter_table[child2][u2A][u2B] +
+                                      (cost(e_a, zero_loss) + cost(e_b, zero_loss) if e_a != e_b
+                                       else intersect_cost(0)))
 
     return score_both_exit
 
@@ -313,7 +312,9 @@ def calculate_equal_enter_score(zero_loss, enter_table, u, uA, uA_loss_events, u
     :param uB:                  The second mapping node to compare
     :param uB_loss_events:      A list of the loss events on that mapping node
     :param score_both_exit:     The score of the double-exit that was previously calculated for uA and uB
-    :param exit_table:          The exit table, which contains information about the single exit events for
+    :param exit_table_a:        The a exit table, which contains information about the single exit events for
+                                the mapping nodes' children.
+    :param exit_table_b:        The b exit table, which contains information about the single exit events for
                                 the mapping nodes' children.
     """
     # If uA does not equal uB, then something's gone horribly wrong.
@@ -353,8 +354,11 @@ def calculate_ancestral_enter_score(zero_loss, is_swapped, enter_table, u, uA, u
     :param uB:                  The second mapping node to compare
     :param uB_loss_events:      A list of the loss events on that mapping node
     :param score_both_exit:   The score of the double-exit that was previously calculated for uA and uB
-    :param exit_table:   The single exit table, which contains information about the single exit events for
-                                the mapping nodes' children."""
+    :param exit_table_a:        The a exit table, which contains information about the single exit events for
+                                the mapping nodes' children.
+    :param exit_table_b:        The b exit table, which contains information about the single exit events for
+                                the mapping nodes' children.
+    """
 
     # In both cases, we will need to tally up the scores of any loss events on the descendant. Scores will hold those
     # values, and the score of a double exit.
@@ -464,10 +468,10 @@ def diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph_
             enter_table[u][uA] = {}
             for uB in postorder_group_b[u]:
 
-                score_both_exit = calculate_score_both_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_recon_graph_a, uB, dtl_recon_graph_b)
+                score_both_exit = calculate_score_both_exit(zero_loss, enter_table, u, gene_tree, uA, dtl_recon_graph_a,
+                                                            uB, dtl_recon_graph_b)
 
-
-                # Look up the ancestry string in the precomputed table (indexed by the species nodes of the mapping nodes)
+                # Look up ancestry string in the precomputed table (indexed by the species nodes of the mapping nodes)
                 ancestry = ancestral_table[uA[1]][uB[1]]
 
                 uA_loss_events = filter(lambda event: isinstance(event, tuple) and event[0] == 'L',
@@ -478,23 +482,24 @@ def diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph_
                 # To compute the proper single exit entry, we must know how the two nodes relate to each other. See the
                 # header for a more complete explanation on this data structure.
                 if ancestry == 'in':
-                    score = calculate_incomparable_enter_score(zero_loss, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                                                               score_both_exit)
+                    score = calculate_incomparable_enter_score(zero_loss, enter_table, u, uA, uA_loss_events, uB,
+                                                               uB_loss_events, score_both_exit)
                 elif ancestry == 'eq':
-                    score = calculate_equal_enter_score(zero_loss, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                                                        score_both_exit, exit_table_a, exit_table_b)
+                    score = calculate_equal_enter_score(zero_loss, enter_table, u, uA, uA_loss_events, uB,
+                                                        uB_loss_events, score_both_exit, exit_table_a, exit_table_b)
                 # The only difference between the 'des' and 'an' cases are whether the nodes should be swapped
                 elif ancestry == 'des':
-                    score = calculate_ancestral_enter_score(zero_loss, True, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                                                            score_both_exit, exit_table_a, exit_table_b)
+                    score = calculate_ancestral_enter_score(zero_loss, True, enter_table, u, uA, uA_loss_events, uB,
+                                                            uB_loss_events, score_both_exit, exit_table_a, exit_table_b)
                 elif ancestry == 'an':
-                    score = calculate_ancestral_enter_score(zero_loss, False, enter_table, u, uA, uA_loss_events, uB, uB_loss_events,
-                                                            score_both_exit, exit_table_a, exit_table_b)
+                    score = calculate_ancestral_enter_score(zero_loss, False, enter_table, u, uA, uA_loss_events, uB,
+                                                            uB_loss_events, score_both_exit, exit_table_a, exit_table_b)
                 else:
                     raise ValueError("Invalid ancestry type '{0}', check calculate_ancestral_table().".format(ancestry))
                 enter_table[u][uA][uB] = score
                 if debug:
-                    print "{0} -{1}-> {2}, Double-equal\t{3}\tScore:{4}".format(uA,ancestry,uB,score_both_exit,score)
+                    print "{0} -{1}-> {2}, Double-equal\t{3}\tScore:{4}".format(uA, ancestry, uB, score_both_exit,
+                                                                                score)
 
         if debug:
             print_table_nicely(enter_table[u], ", ", "EnterTable({0})".format(u))
@@ -537,7 +542,7 @@ def print_table_nicely(table, deliminator, name="\t", dtype="map"):
         if dtype == "event":
             line += "\t{0}".format(event_to_string(column))
         elif dtype == "literal":
-            line+=  "\t{0}".format(column)
+            line += "\t{0}".format(column)
         else:
             line += "\t{0}{1}{2}".format(str(column[0]), deliminator, str(column[1]))
     print line + "\033[0m"
@@ -564,5 +569,3 @@ def print_table_nicely(table, deliminator, name="\t", dtype="map"):
                 line += line_color
         print line
     print "\033[0m"  # Return to default color
-
-
