@@ -102,7 +102,7 @@ def buildTree(dfsList):
 
 def buildTreeDictionary(tupleTree, parentVertex, D, treeType):
     """ Takes as input a tuple representation of a tree (constructed by
-        the buildTree function, for example) and returns the dictionary
+        the buildTree function, for example1.newick) and returns the dictionary
         representation of the tree used by the xscape tools. """
     root = tupleTree[0]
     leftTree = tupleTree[1]

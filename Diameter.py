@@ -426,7 +426,7 @@ def diameter_algorithm(species_tree, gene_tree, gene_tree_root, dtl_recon_graph_
     This function finds the diameter of a reconciliation graph, as measured by the largest symmetric set difference
      of any two reconciliation trees inside of a reconciliation graph. While you can get standard diameter behaviour
      by making dtl_recon_graph_a equal dtl_recon_graph_b, arbitrary restrictions may be placed on which nodes are
-     selected by choosing different graphs, for example by limiting one of the graphs to a single reconciliation tree
+     selected by choosing different graphs, for example1.newick by limiting one of the graphs to a single reconciliation tree
      to find that tree's distance to the furthest reconciliation.
     :param species_tree:        The species tree (in vertex form)
     :param gene_tree:           The gene tree (in vertex form)
